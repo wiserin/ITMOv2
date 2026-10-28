@@ -21,13 +21,15 @@ COPY --from=template /opt/venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY ./tests/api ./tests
+COPY pyproject.toml ./
+COPY ./app ./app
+COPY ./tests/api ./tests/api
 
-RUN mkdir reports
+RUN mkdir -p /reports
 
 ENTRYPOINT [ "pytest" ]
 
-CMD [ "tests/", "--junitxml", "/reports/report.xml" ]
+CMD [ "tests/api/", "--junitxml", "/reports/report.xml" ]
 
 FROM python:3.14-alpine AS unit-tests
 

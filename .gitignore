@@ -173,3 +173,4 @@ student_solutions/
 !.roo/
 !.specify/
 !.vscode/
+.ruff_cache/

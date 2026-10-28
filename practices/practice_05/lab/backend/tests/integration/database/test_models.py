@@ -46,7 +46,7 @@ def run_check(check: Callable[[AsyncSession], Awaitable[None]]) -> None:
 def test_bootstrap_root() -> None:
     async def check(session: AsyncSession) -> None:
         root = (await session.scalars(
-            select(UserORM).where(UserORM.email == "root@animemap.local")
+            select(UserORM).where(UserORM.email == "root@example.com")
             .options(selectinload(UserORM.credentials), selectinload(UserORM.sessions))
         )).one()
         assert root.username == "root"
@@ -70,7 +70,7 @@ def test_bootstrap_root() -> None:
 def test_password_history_allows_only_one_current_password() -> None:
     async def check(session: AsyncSession) -> None:
         root_id = (await session.scalars(
-            select(UserORM.id).where(UserORM.email == "root@animemap.local")
+            select(UserORM.id).where(UserORM.email == "root@example.com")
         )).one()
         for _ in range(2):
             session.add(CredentialORM(
@@ -147,7 +147,7 @@ def test_user_constraints(changes: dict[str, object]) -> None:
 def test_session_timestamp_constraints(invalid_field: str) -> None:
     async def check(session: AsyncSession) -> None:
         root_id = (await session.scalars(
-            select(UserORM.id).where(UserORM.email == "root@animemap.local")
+            select(UserORM.id).where(UserORM.email == "root@example.com")
         )).one()
         now = datetime.now(UTC)
         values = {

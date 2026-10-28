@@ -18,11 +18,24 @@ uv run --group migrations alembic check
 Первая миграция создаёт `users`, `credentials`, `sessions`, ограничения и частичные индексы, а также bootstrap-аккаунт:
 
 - username: `root`;
-- email: `root@animemap.local`;
+- email: `root@example.com`;
 - начальный пароль: `root`;
 - роль: `admin` (`3`), аккаунт активен.
 
-Пароль хранится только в виде Argon2id-хэша в текущем credential. Bootstrap выполняется один раз миграцией: повторный `upgrade head` и перезапуск приложения не сбрасывают пароль, роль или профиль. Вход через API ещё не реализован.
+Пароль хранится только в виде Argon2id-хэша в текущем credential. Bootstrap выполняется один раз миграцией: повторный `upgrade head` и перезапуск приложения не сбрасывают пароль, роль или профиль. HTTP-контракты входа и регистрации реализованы в presentation; application-сценарии ещё не подключены.
+
+## Presentation: вход и регистрация
+
+- `POST /v1/auth/login`: email и пароль → `200` с `{}` и `Set-Cookie: session_token=<jwt>; Secure; HttpOnly; SameSite=Lax; Path=/`. JWT и срок сессии не передаются в JSON; браузер прикладывает cookie автоматически по HTTPS.
+- `POST /v1/auth/register`: email, username, пароль и необязательный display_name → `303` с `Location` на login. API-клиент обрабатывает редирект без автоматического GET; следующий вход выполняется отдельным POST.
+- Запросы — JSON, email проверяется `pydantic.EmailStr`. Внешние схемы `LoginRequest`, `RegisterRequest`, `LoginResponse` расположены в `api/schemas/requests/` и `responses/`. Суффикс `DTO` используется только для внутренних объектов приложения. Полный контракт — в [`docs/auth.md`](../docs/auth.md).
+- В `api/di/` функция `get_<name>_usecase` возвращает UseCase, а алиас `<Name>UseCaseDI = Annotated[UseCase, Depends(provider)]` используется в сигнатуре ручки. В presentation вызываются именованные методы `login`/`register`, не сам объект. `AuthUseCaseDI` возвращает пользователя после вызова `authenticate` в обёртке `get_authenticated_user`. Временные реализации возвращают `501`; API-тесты подменяют функции-провайдеры без БД и env.
+
+```bash
+uv run --group tests pytest tests/api
+docker build --target api-tests -f Dockerfile.tests -t animemap-api-tests .
+docker run --rm animemap-api-tests
+```
 
 ## Генерация следующей миграции
 

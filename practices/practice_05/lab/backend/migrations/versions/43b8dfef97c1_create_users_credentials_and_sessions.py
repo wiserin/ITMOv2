@@ -91,7 +91,7 @@ def upgrade() -> None:
     )
     op.bulk_insert(users, [{
         'id': root_id,
-        'email': 'root@animemap.local',
+        'email': 'root@example.com',
         'username': 'root',
         'display_name': 'root',
         'role': 3,
