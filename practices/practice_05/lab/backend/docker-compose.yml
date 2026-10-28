@@ -1,0 +1,36 @@
+
+services:
+  database:
+    # todo
+    networks:
+      - backend-private
+  
+  cache:
+    # todo
+    networks:
+      - backend-private
+
+
+  backend:
+    build:
+      dockerfile: Dockerfile
+      context: .
+
+    depends_on:
+      database:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+
+    networks:
+      - backend-private
+
+    ports:
+      - "8080:8080"
+
+volumes:
+  pg_data:
+
+networks:
+  backend-private:
+    driver: bridge
