@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "skills": {
+    "paths": [
+      ".opencode/skills"
+    ]
+  },
+  "mcp": {
+    "practice4-tests": {
+      "type": "local",
+      "command": [
+        ".venv/bin/python",
+        "mcp_server.py"
+      ],
+      "enabled": true,
+      "environment": {}
+    }
+  },
+  "plugin": [
+    "./plugins/verification.js"
+  ],
+  "experimental": {
+    "primary_tools": ["apply_patch", "edit", "write"]
+  }
+}
