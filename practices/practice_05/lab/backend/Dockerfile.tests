@@ -1,0 +1,46 @@
+FROM python:3.14-alpine AS template
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+WORKDIR /app
+
+RUN uv venv /opt/venv
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY pyproject.toml uv.lock ./
+
+RUN [ "uv", "sync", "--frozen", "--only-group", "tests" ]
+
+FROM python:3.14-alpine AS api-tests
+
+WORKDIR /app
+
+COPY --from=template /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY ./tests/api ./tests
+
+RUN mkdir reports
+
+ENTRYPOINT [ "pytest" ]
+
+CMD [ "tests/", "--junitxml", "/reports/report.xml" ]
+
+FROM python:3.14-alpine AS unit-tests
+
+WORKDIR /app
+
+COPY --from=template /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY ./tests/unit ./tests
+
+RUN mkdir reports
+
+ENTRYPOINT [ "pytest" ]
+
+CMD [ "tests/", "--junitxml", "/reports/report.xml" ]
