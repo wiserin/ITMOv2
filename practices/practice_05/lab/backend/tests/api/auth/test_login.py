@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from http.cookies import SimpleCookie
-from unittest.mock import NonCallableMock
+from unittest.mock import AsyncMock, NonCallableMock
 
 import pytest
 from fastapi import FastAPI
@@ -10,10 +10,20 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.dto.login import LoginDTO
-from app.domain.exceptions.entities import AuthenticationException
+from app.domain.exceptions.entities import (
+    AuthenticationException,
+    ServiceUnavailableException,
+)
+from app.domain.ports.jwt import JwtProviderPort
+from app.domain.ports.secret import SecretManagerPort
 from app.presentation.api.cookies import SESSION_COOKIE_NAME
 from app.presentation.api.di.clients.postgres import (
     get_postgres_session,
+)
+from app.presentation.api.di.ports.jwt import get_jwt_provider
+from app.presentation.api.di.ports.secret import get_secret_manager
+from app.presentation.api.di.ports.session_timeout import (
+    get_session_idle_timeout,
 )
 from app.presentation.api.routes import router_v1
 from app.presentation.api.schemas.responses.login import LoginResponse
@@ -109,15 +119,28 @@ def test_login_response_excludes_token_and_session_expiration(
         "username": "new", "password": "password",
     }),
 ])
-def test_unconfigured_use_case_does_not_report_success(
+def test_storage_failure_does_not_report_success(
         path: str,
-        payload: dict[str, str]) -> None:
+        payload: dict[str, str],
+        jwt_provider: JwtProviderPort,
+        secret_manager: SecretManagerPort) -> None:
     app = FastAPI()
     setup_exception_handlers(app)
     app.include_router(router_v1)
     session = NonCallableMock(spec=AsyncSession)
+    session.scalars = AsyncMock(
+        side_effect=ServiceUnavailableException(),
+    )
+    session.flush = AsyncMock(
+        side_effect=ServiceUnavailableException(),
+    )
     app.dependency_overrides[get_postgres_session] = lambda: session
+    app.dependency_overrides[get_jwt_provider] = lambda: jwt_provider
+    overrides = app.dependency_overrides
+    overrides[get_secret_manager] = lambda: secret_manager
+    app.dependency_overrides[get_session_idle_timeout] = lambda: 30
     with TestClient(app, follow_redirects=False) as client:
         response = client.post(path, json=payload)
-    assert response.status_code == 501
+    assert response.status_code == 503
     assert "location" not in response.headers
+    assert "set-cookie" not in response.headers

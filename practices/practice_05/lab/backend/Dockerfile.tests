@@ -24,6 +24,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY pyproject.toml ./
 COPY ./app ./app
 COPY ./tests/api ./tests/api
+COPY ./tests/conftest.py ./tests/conftest.py
 
 RUN mkdir -p /reports
 
@@ -42,6 +43,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY pyproject.toml ./
 COPY ./app ./app
 COPY ./tests/unit ./tests/unit
+COPY ./tests/conftest.py ./tests/conftest.py
 
 RUN mkdir -p /reports
 
@@ -61,6 +63,7 @@ COPY pyproject.toml alembic.ini ./
 COPY ./app ./app
 COPY ./migrations ./migrations
 COPY ./tests/integration ./tests/integration
+COPY ./tests/conftest.py ./tests/conftest.py
 
 RUN mkdir -p /reports
 

@@ -2,7 +2,7 @@
 
 ## Запуск всего окружения
 
-Из `backend/` или родительского `lab/`:
+Создать `backend/.env` по `.env.example` и заполнить `JWT_PRIVATE_KEY` по инструкции [security.md](../docs/security.md). Из `backend/`:
 
 ```bash
 docker compose up --build --wait
@@ -11,7 +11,7 @@ docker compose ps --all
 
 Запускаются PostgreSQL, Redis, миграции и API. Backend ждёт успешного завершения Alembic; адрес — `http://localhost:8080`, Swagger — `/docs`, healthcheck — `/ping`. При необходимости порт меняется через `BACKEND_PORT`.
 
-Собственные настройки задаются в `backend/.env` по образцу `.env.example`; без него работают dev-значения Compose. Подробности сети, volume, startup/shutdown и остановки — в [docs/deployment.md](../docs/deployment.md).
+Из `lab/` передавать `--env-file backend/.env` в Compose-команды. Для БД/Redis предусмотрены dev-значения; ключ JWT задаётся явно. Подробности — в [docs/deployment.md](../docs/deployment.md).
 
 Лимит Python-строки — 70 символов, включая отступ. Проверка:
 
@@ -41,7 +41,7 @@ uv run --group migrations alembic check
 - начальный пароль: `root`;
 - роль: `admin` (`3`), аккаунт активен.
 
-Пароль хранится только в виде Argon2id-хэша в текущем credential. Bootstrap выполняется один раз миграцией: повторный `upgrade head` и перезапуск приложения не сбрасывают пароль, роль или профиль. HTTP-контракты входа и регистрации реализованы в presentation; application-сценарии ещё не подключены.
+Пароль хранится только в виде Argon2id-хэша в текущем credential. Bootstrap выполняется один раз миграцией: повторный `upgrade head` и перезапуск приложения не сбрасывают пароль, роль или профиль. Сценарии входа, регистрации и проверки сессии реализованы через EdDSA JWT и Argon2id.
 
 ## Presentation: вход и регистрация
 
@@ -50,7 +50,7 @@ uv run --group migrations alembic check
 - `POST /v1/auth/login`: email и пароль → `200` с `{}` и `Set-Cookie: session_token=<jwt>; Secure; HttpOnly; SameSite=Lax; Path=/`. JWT и срок сессии не передаются в JSON; браузер прикладывает cookie автоматически по HTTPS.
 - `POST /v1/auth/register`: email, username, пароль и необязательный display_name → `303` с `Location` на login. API-клиент обрабатывает редирект без автоматического GET; следующий вход выполняется отдельным POST.
 - Запросы — JSON, email проверяется `pydantic.EmailStr`. Внешние схемы `LoginRequest`, `RegisterRequest`, `LoginResponse` расположены в `api/schemas/requests/` и `responses/`. Суффикс `DTO` используется только для внутренних объектов приложения. Полный контракт — в [`docs/auth.md`](../docs/auth.md).
-- В `api/di/` функция `get_<name>_usecase` возвращает UseCase, а алиас `<Name>UseCaseDI = Annotated[UseCase, Depends(provider)]` используется в сигнатуре ручки. В presentation вызываются именованные методы `login`/`register`, не сам объект. `AuthUseCaseDI` возвращает пользователя после вызова `authenticate` в обёртке `get_authenticated_user`. Временные реализации возвращают `501`; API-тесты подменяют функции-провайдеры без БД и env.
+- В `api/di/` функция `get_<name>_usecase` возвращает UseCase, а алиас `<Name>UseCaseDI = Annotated[UseCase, Depends(provider)]` используется в сигнатуре ручки. В presentation вызываются именованные методы `login`/`register`. `AuthUseCaseDI` возвращает пользователя после вызова `authenticate`. Порты и настройки EdDSA/Argon2id — в [security.md](../docs/security.md). API-тесты работают без БД и env; интеграционные тесты проверяют реальные адаптеры.
 
 ```bash
 uv run --group tests pytest tests/api
@@ -63,13 +63,13 @@ docker run --rm animemap-api-tests
 - `GET /v1/account/me` — текущий аккаунт из auth DI, доступен любому активному аутентифицированному пользователю.
 - `GET /v1/account/find/{username_prefix}?limit=20&offset=0` — страница совпадений по префиксу username, доступен moderator/admin. Роль проверяется до поиска, обычный user получает `403`. Limit ограничен диапазоном 1–100, offset — 0–10 000; оба поля принимает общий `PaginationRequest` через `Annotated[PaginationRequest, Query()]`.
 - Роли возвращаются строками; JWT, хэши и сроки сессий в ответ не попадают.
-- Конкретный `FindAccountsUseCase` получает доменный `UserRepository` извне через конструктор и DI. Реальный SQLAlchemy-адаптер возвращает страницу `UserEntity`; UseCase преобразует сущности в application DTO. Аутентификация пока не реализована, но поиск проверяется интеграционным тестом с PostgreSQL и подменой только auth.
+- `FindAccountsUseCase` получает доменный `UserRepository` извне через конструктор и DI. SQLAlchemy-адаптер возвращает страницу `UserEntity`; UseCase преобразует сущности в DTO. Auth проверяет JWT, Argon2id-секрет и актуальное состояние сессии в PostgreSQL.
 
 ## Репозитории и DI
 
 Реализованы `SQLAlchemyUserRepositoryAdapter`, `SQLAlchemyCredentialRepositoryAdapter`, `SQLAlchemySessionRepositoryAdapter`. Каждый получает AsyncSession извне, имеет `_to_orm`/`_from_orm`, выполняет явные async ORM-запросы и flush после записи. Commit/rollback выполняет SessionController при выходе из контекста; в адаптерах commit отсутствует.
 
-DI разделена на `clients`, `repositories`, `entities`, `ports`; отдельные фабрики UseCase объединяют типизированные зависимости. Репозитории одного запроса используют общую сессию с завершением транзакции до отправки HTTP-ответа.
+DI разделена на `clients`, `repositories`, `entities`, `ports`; фабрики UseCase объединяют зависимости. Репозитории бизнес-сценария используют общую сессию с завершением транзакции до отправки ответа. Auth использует отдельную сессию и фиксирует продление до возврата пользователя, независимо от дальнейшего 403/rollback.
 
 Контракты CRUD, блокировки и транзакции — в [docs/repositories.md](../docs/repositories.md).
 

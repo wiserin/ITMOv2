@@ -98,6 +98,14 @@ class SessionController:
     async def dispose(self) -> None:
         await self._engine.dispose()
 
+    @staticmethod
+    async def commit(session: AsyncSession) -> None:
+        """Persist auth usage before the business request."""
+        try:
+            await session.commit()
+        except DBAPIError as exc:
+            raise translate_database_error(exc) from exc
+
     async def check_connection(self) -> None:
         try:
             async with self._engine.connect() as connection:

@@ -53,7 +53,7 @@
 
 `SessionController.session()` (`infrastructure/database/session.py`) создаёт AsyncSession, выполняет commit при нормальном выходе и rollback при ошибке. `factory.py` конфигурирует экземпляр контроллера из настроек приложения.
 
-Все репозитории запроса получают один и тот же PostgresSessionDI. Функциональный scope yield-dependency завершает транзакцию до отправки ответа; ошибка commit может быть преобразована общим HTTP mapper вместо уже отправленного успеха.
+Репозитории бизнес-сценария получают один и тот же PostgresSessionDI. Auth использует отдельную AuthPostgresSessionDI и callback SessionController.commit: продление фиксируется в AuthUseCase до возврата пользователя, независимо от будущего 403/rollback бизнес-сценария. Это обоснованное исключение для commit в UseCase. Функциональный scope yield-dependency завершает транзакцию до отправки ответа; ошибка commit преобразуется общим HTTP mapper.
 
 Ошибки драйвера переводятся в [общие доменные ошибки](errors.md). Адаптер не пытается продолжать транзакцию после неудачного flush. Для восстановления нужен rollback владельца транзакции либо заранее открытый вызывающим кодом savepoint. Редкий самостоятельный commit UseCase должен быть явно обоснован и не переносится в адаптер.
 
@@ -79,4 +79,4 @@ presentation/api/di/
 
 Каждый провайдер возвращает конкретный объект с аннотацией интерфейса; рядом объявлен `Annotated[..., Depends(provider)]`-алиас. DI UseCase перечисляет необходимые репозитории/порты в сигнатуре и передаёт их в конструктор. Login получает три репозитория, register — пользователей и credentials, auth — пользователей и сессий, find_accounts — пользователей.
 
-Repository DI и работа с PostgreSQL реализованы. Бизнес-методы login/register/auth пока возвращают доменный NotImplementedException; их реализация — следующий отдельный этап. Поиск уже использует реальный ORM-репозиторий.
+Repository DI, PostgreSQL и сценарии login/register/auth реализованы. Login/auth получают JwtProviderPort и SecretManagerPort, register — SecretManagerPort; настройки приходят извне через конструкторы. Реализации EdDSA/Argon2id и отдельная auth-транзакция описаны в [security.md](security.md). Поиск использует реальный ORM-репозиторий.

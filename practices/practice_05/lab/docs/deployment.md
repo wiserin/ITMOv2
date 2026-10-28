@@ -5,7 +5,7 @@
 ## Запуск
 
 ```bash
-docker compose up --build --wait
+docker compose --env-file backend/.env up --build --wait
 docker compose ps --all
 ```
 
@@ -17,7 +17,7 @@ API доступен на `http://localhost:8080`, OpenAPI UI — `/docs`, пр�
 BACKEND_PORT=8082 docker compose up --build --wait
 ```
 
-Compose может запускаться без `.env`: предусмотрены dev-значения по умолчанию. Для собственных значений создать `backend/.env` по образцу `.env.example`. Файл содержит настройки локальной разработки; внутри контейнеров POSTGRES_HOST/REDIS_HOST всегда переопределяются на имена сервисов `database`/`cache`.
+Перед запуском создать `backend/.env` по образцу `.env.example`, заполнить `JWT_PRIVATE_KEY` (base64 PEM Ed25519). Генерация ключа и параметры Argon2id описаны в [security.md](security.md). Для БД и Redis предусмотрены dev-значения по умолчанию; внутри контейнеров POSTGRES_HOST/REDIS_HOST переопределяются на `database`/`cache`. Из `backend/` достаточно `docker compose up --build --wait`; из `lab/` передавать `--env-file backend/.env` и в последующие Compose-команды либо экспортировать переменные окружения.
 
 ## Состав и порядок запуска
 
@@ -34,9 +34,9 @@ Compose может запускаться без `.env`: предусмотре�
 
 PostgreSQL 18 хранит данные в именованном volume, смонтированном в `/var/lib/postgresql`. Повторный запуск использует существующие данные; Alembic не создаёт root повторно и не сбрасывает его пароль.
 
-Bootstrap после первой миграции: username `root`, email `root@example.com`, начальный пароль `root`, роль admin. Репозитории и поиск реализованы; бизнес-методы входа/регистрации/JWT пока возвращают `501` согласно [контракту auth](endpoints/auth.md).
+Bootstrap после первой миграции: username `root`, email `root@example.com`, начальный пароль `root`, роль admin. Репозитории, поиск, вход, регистрация и JWT-аутентификация реализованы согласно [контракту auth](endpoints/auth.md).
 
-При старте lifespan проверяет подключения к PostgreSQL/Redis; при остановке освобождает оба клиента. Bootstrap выполняет миграция, а не каждый запуск API. В Compose TLS не завершается; в целевом окружении HTTPS предполагается на Nginx, контракт Secure HttpOnly cookie сохраняется.
+При старте lifespan проверяет Ed25519-ключ и подключения к PostgreSQL/Redis; при остановке освобождает оба клиента. Bootstrap выполняет миграция. В Compose TLS не завершается; для работы браузерной Secure cookie нужен HTTPS, в целевом окружении — Nginx.
 
 ## Диагностика
 

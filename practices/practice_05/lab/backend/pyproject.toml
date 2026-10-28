@@ -20,6 +20,7 @@ service = [
     "asyncpg>=0.31.0",
     "fastapi>=0.162.0",
     "pydantic[email]>=2.14.1",
+    "pyjwt[crypto]>=2.10.1",
     "redis>=8.1.0",
     "sqlalchemy[asyncio]>=2.1.6",
     "uvicorn>=0.38.0",

@@ -8,6 +8,8 @@ from fastapi.testclient import TestClient
 from app.application.usecases.login import LoginUseCase
 from app.application.usecases.register import RegisterUseCase
 from app.domain.exceptions.entities import AuthenticationException
+from app.domain.ports.jwt import JwtProviderPort
+from app.domain.ports.secret import SecretManagerPort
 from app.domain.repositories.credential import CredentialRepository
 from app.domain.repositories.session import SessionRepository
 from app.domain.repositories.user import UserRepository
@@ -16,7 +18,9 @@ from app.presentation.api.di.login import get_login_usecase
 from app.presentation.api.di.register import get_register_usecase
 
 
-def test_normal_di_returns_use_case_without_executing_it() -> None:
+def test_normal_di_returns_use_case_without_executing_it(
+        jwt_provider: JwtProviderPort,
+        secret_manager: SecretManagerPort) -> None:
     users = NonCallableMock(spec=UserRepository)
     credentials = NonCallableMock(spec=CredentialRepository)
     sessions = NonCallableMock(spec=SessionRepository)
@@ -24,9 +28,13 @@ def test_normal_di_returns_use_case_without_executing_it() -> None:
         user_repository=users,
         credential_repository=credentials,
         session_repository=sessions,
+        jwt_provider=jwt_provider,
+        secret_manager=secret_manager,
+        idle_timeout=30,
     )
     register_use_case = get_register_usecase(
         user_repository=users, credentials=credentials,
+        secret_manager=secret_manager,
     )
     assert isinstance(login_use_case, LoginUseCase)
     assert isinstance(register_use_case, RegisterUseCase)
