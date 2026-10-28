@@ -1,45 +1,52 @@
-from logging.config import fileConfig
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
-from sqlalchemy import Connection
-from alembic import context
 import asyncio
+from logging.config import fileConfig
 
-from app.infrastructure.database.models import Base
+from alembic import context
+from sqlalchemy import URL, Connection, pool
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from app.config import app_config
-
-import app.infrastructure.database.models #noqa: F401
+from app.infrastructure.database.models import Base
 
 config = context.config
 
-db_username = app_config.postgres_user
-db_user_password = app_config.postgres_password
-db_host = app_config.postgres_host
-db_port = app_config.postgres_port
-db_name = app_config.postgres_db
-
-
-postgres_conn: str = f'postgresql+asyncpg://{db_username}:{db_user_password}@{db_host}:{db_port}/{db_name}'
-config.set_main_option("sqlalchemy.url", postgres_conn)
-engine: AsyncEngine = create_async_engine(postgres_conn)
+postgres_url = URL.create(
+    drivername="postgresql+asyncpg",
+    username=app_config.postgres_user,
+    password=app_config.postgres_password,
+    host=app_config.postgres_host,
+    port=app_config.postgres_port,
+    database=app_config.postgres_db,
+)
 
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 
-def run_migrations_offline():
-    context.configure(url=postgres_conn, target_metadata=Base.metadata, literal_binds=True)
+def run_migrations_offline() -> None:
+    context.configure(
+        url=postgres_url, target_metadata=Base.metadata, literal_binds=True,
+        compare_server_default=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 
 
-async def run_migrations_online():
-    async with engine.connect() as connection:
-        await connection.run_sync(do_run_migrations)
+async def run_migrations_online() -> None:
+    engine = create_async_engine(postgres_url, poolclass=pool.NullPool)
+    try:
+        async with engine.connect() as connection:
+            await connection.run_sync(do_run_migrations)
+    finally:
+        await engine.dispose()
 
 
-def do_run_migrations(connection: Connection):
-    context.configure(connection=connection, target_metadata=Base.metadata)
+def do_run_migrations(connection: Connection) -> None:
+    context.configure(
+        connection=connection, target_metadata=Base.metadata,
+        compare_server_default=True,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

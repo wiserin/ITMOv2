@@ -1,0 +1,74 @@
+Project animemap_api {
+  database_type: 'PostgreSQL'
+}
+
+Table users {
+  id uuid [pk, not null]
+  email varchar(254) [not null, unique]
+  username varchar(100) [not null]
+  display_name varchar(100)
+  role integer [not null, default: 1]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'DEFAULT действует только при INSERT. При UPDATE значение устанавливается приложением.']
+
+  checks {
+    `role IN (1, 2, 3)` [name: 'ck_users_role']
+    `email = lower(btrim(email)) AND char_length(email) > 0` [name: 'ck_users_email_canonical']
+    `username = btrim(username) AND char_length(username) > 0` [name: 'ck_users_username_canonical']
+    `display_name IS NULL OR char_length(btrim(display_name)) > 0` [name: 'ck_users_display_name_not_blank']
+    `updated_at >= created_at` [name: 'ck_users_timestamps_order']
+  }
+}
+
+Table credentials {
+  id uuid [pk, not null]
+  user_id uuid [not null]
+  password_hash text [not null]
+  is_current boolean [not null, default: true]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'ix_credentials_user_id']
+    user_id [
+      unique,
+      name: 'uq_credentials_current_user',
+      note: 'Partial index: WHERE is_current = true'
+    ]
+  }
+
+  checks {
+    `char_length(btrim(password_hash)) > 0` [name: 'ck_credentials_password_hash_not_blank']
+  }
+}
+
+Ref: credentials.user_id > users.id [delete: cascade, update: no action]
+
+Table sessions {
+  id uuid [pk, not null]
+  user_id uuid [not null]
+  secret text [not null]
+  secret_hash text [not null]
+  created_at timestamptz [not null, default: `now()`]
+  last_used_at timestamptz [not null, default: `now()`]
+  closed_at timestamptz
+  expires_at timestamptz [not null, note: 'Значение рассчитывается приложением; серверного DEFAULT нет.']
+
+  indexes {
+    user_id [name: 'ix_sessions_user_id']
+    expires_at [
+      name: 'ix_sessions_open_expires_at',
+      note: 'Partial index: WHERE closed_at IS NULL'
+    ]
+  }
+
+  checks {
+    `char_length(btrim(secret)) > 0` [name: 'ck_sessions_secret_not_blank']
+    `char_length(btrim(secret_hash)) > 0` [name: 'ck_sessions_secret_hash_not_blank']
+    `last_used_at >= created_at` [name: 'ck_sessions_last_used_at']
+    `expires_at > last_used_at` [name: 'ck_sessions_expires_at']
+    `closed_at IS NULL OR closed_at >= last_used_at` [name: 'ck_sessions_closed_at']
+  }
+}
+
+Ref: sessions.user_id > users.id [delete: cascade, update: no action]

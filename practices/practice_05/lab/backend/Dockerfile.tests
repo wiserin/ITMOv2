@@ -11,7 +11,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY pyproject.toml uv.lock ./
 
-RUN [ "uv", "sync", "--frozen", "--only-group", "tests" ]
+RUN [ "uv", "sync", "--frozen", "--group", "tests" ]
 
 FROM python:3.14-alpine AS api-tests
 
@@ -37,10 +37,31 @@ COPY --from=template /opt/venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY ./tests/unit ./tests
+COPY pyproject.toml ./
+COPY ./app ./app
+COPY ./tests/unit ./tests/unit
 
-RUN mkdir reports
+RUN mkdir -p /reports
 
 ENTRYPOINT [ "pytest" ]
 
-CMD [ "tests/", "--junitxml", "/reports/report.xml" ]
+CMD [ "tests/unit/", "--junitxml", "/reports/report.xml" ]
+
+FROM python:3.14-alpine AS integration-tests
+
+WORKDIR /app
+
+COPY --from=template /opt/venv /opt/venv
+
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY pyproject.toml alembic.ini ./
+COPY ./app ./app
+COPY ./migrations ./migrations
+COPY ./tests/integration ./tests/integration
+
+RUN mkdir -p /reports
+
+ENTRYPOINT [ "pytest" ]
+
+CMD [ "tests/integration/", "--junitxml", "/reports/report.xml" ]
