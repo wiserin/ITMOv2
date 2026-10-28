@@ -4,14 +4,16 @@ from http.cookies import SimpleCookie
 from unittest.mock import NonCallableMock
 
 import pytest
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.application.dto.login import LoginDTO
+from app.domain.exceptions.entities import AuthenticationException
 from app.presentation.api.cookies import SESSION_COOKIE_NAME
 from app.presentation.api.routes import router_v1
 from app.presentation.api.schemas.responses.login import LoginResponse
+from app.presentation.setup_exceptions import setup_exception_handlers
 
 
 def test_login_sets_secure_httponly_session_cookie(
@@ -58,20 +60,21 @@ def test_invalid_login_is_rejected_before_use_case(
         login_use_case: NonCallableMock,
         payload: dict[str, object]) -> None:
     response = client.post("/v1/auth/login", json=payload)
-    assert response.status_code == 422
+    assert response.status_code == 400
     login_use_case.login.assert_not_awaited()
     assert "set-cookie" not in response.headers
 
 
 def test_bad_credentials_response(client: TestClient, login_use_case: NonCallableMock) -> None:
-    login_use_case.login.side_effect = HTTPException(
-        status_code=401, detail="Invalid credentials",
-    )
+    login_use_case.login.side_effect = AuthenticationException(details={"reason": "invalid_credentials"})
     response = client.post("/v1/auth/login", json={
         "email": "root@example.com", "password": "wrong-password",
     })
     assert response.status_code == 401
-    assert response.json() == {"detail": "Invalid credentials"}
+    assert response.json() == {
+        "error": "authentication_failed", "message": "Authentication failed",
+        "details": {"reason": "invalid_credentials"},
+    }
     assert "set-cookie" not in response.headers
 
 
@@ -92,6 +95,7 @@ def test_login_response_excludes_token_and_session_expiration(payload: str) -> N
 ])
 def test_unconfigured_use_case_does_not_report_success(path: str, payload: dict[str, str]) -> None:
     app = FastAPI()
+    setup_exception_handlers(app)
     app.include_router(router_v1)
     with TestClient(app, follow_redirects=False) as client:
         response = client.post(path, json=payload)

@@ -3,11 +3,11 @@ from __future__ import annotations
 from unittest.mock import NonCallableMock
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.application.usecases.login import LoginUseCase
 from app.application.usecases.register import RegisterUseCase
+from app.domain.exceptions.entities import AuthenticationException
 from app.presentation.api.cookies import SESSION_COOKIE_NAME
 from app.presentation.api.di.login import get_login_usecase
 from app.presentation.api.di.register import get_register_usecase
@@ -50,11 +50,14 @@ def test_secure_cookie_is_not_sent_over_http(client: TestClient, auth_use_case: 
 
 
 def test_auth_failure_is_not_a_user(client: TestClient, auth_use_case: NonCallableMock) -> None:
-    auth_use_case.authenticate.side_effect = HTTPException(status_code=401, detail="Session expired")
+    auth_use_case.authenticate.side_effect = AuthenticationException(details={"reason": "session_expired"})
     client.cookies.set(SESSION_COOKIE_NAME, "expired-session")
     response = client.get("/private")
     assert response.status_code == 401
-    assert response.json() == {"detail": "Session expired"}
+    assert response.json() == {
+        "error": "authentication_failed", "message": "Authentication failed",
+        "details": {"reason": "session_expired"},
+    }
 
 
 def test_openapi_uses_cookie_security(client: TestClient) -> None:

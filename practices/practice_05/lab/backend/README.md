@@ -26,6 +26,8 @@ uv run --group migrations alembic check
 
 ## Presentation: вход и регистрация
 
+Документация групп ручек: [auth](../docs/endpoints/auth.md) и [account](../docs/endpoints/account.md). Она обновляется при добавлении или изменении endpoint.
+
 - `POST /v1/auth/login`: email и пароль → `200` с `{}` и `Set-Cookie: session_token=<jwt>; Secure; HttpOnly; SameSite=Lax; Path=/`. JWT и срок сессии не передаются в JSON; браузер прикладывает cookie автоматически по HTTPS.
 - `POST /v1/auth/register`: email, username, пароль и необязательный display_name → `303` с `Location` на login. API-клиент обрабатывает редирект без автоматического GET; следующий вход выполняется отдельным POST.
 - Запросы — JSON, email проверяется `pydantic.EmailStr`. Внешние схемы `LoginRequest`, `RegisterRequest`, `LoginResponse` расположены в `api/schemas/requests/` и `responses/`. Суффикс `DTO` используется только для внутренних объектов приложения. Полный контракт — в [`docs/auth.md`](../docs/auth.md).
@@ -36,6 +38,19 @@ uv run --group tests pytest tests/api
 docker build --target api-tests -f Dockerfile.tests -t animemap-api-tests .
 docker run --rm animemap-api-tests
 ```
+
+## Presentation: аккаунты
+
+- `GET /v1/account/me` — текущий аккаунт из auth DI, доступен любому активному аутентифицированному пользователю.
+- `GET /v1/account/find/{username_prefix}?limit=20&offset=0` — страница совпадений по префиксу username, доступен moderator/admin. Роль проверяется до поиска, обычный user получает `403`. Limit ограничен диапазоном 1–100, offset — 0–10 000; оба поля принимает общий `PaginationRequest` через `Annotated[PaginationRequest, Query()]`.
+- Роли возвращаются строками; JWT, хэши и сроки сессий в ответ не попадают.
+- Конкретный `FindAccountsUseCase` получает доменный `UserRepository` извне через конструктор и DI. Репозиторий возвращает `UserEntity`; UseCase преобразует сущности в application DTO. Реальный SQL-адаптер ещё не реализован; его временная замена выбрасывает общий `NotImplementedException` (`501` после HTTP-маппинга). API-тесты подменяют репозиторий и сохраняют реальную проверку прав.
+
+## Ошибки и границы application
+
+Общие ошибки всех слоёв находятся в `domain/exceptions/entities/`, наследуются от `BaseDomainException` и передают контекст в `details`. Mapper `presentation/setup_exceptions.py` формирует `error/message/details`; валидация запросов возвращает `400`. Полный контракт — в [docs/errors.md](../docs/errors.md).
+
+В application нет портов и собственных репозиторных интерфейсов. Поиск и другие операции с сущностями выполняются через доменные репозитории. Application service допускается только по прямому указанию пользователя; по умолчанию прикладная логика находится в UseCase.
 
 ## Генерация следующей миграции
 

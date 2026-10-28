@@ -3,10 +3,10 @@ from __future__ import annotations
 from unittest.mock import NonCallableMock
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.application.dto.register import RegisterDTO
+from app.domain.exceptions.entities import AlreadyExistsException
 
 
 def test_registration_redirects_only_after_success(
@@ -60,7 +60,7 @@ def test_registration_fields_match_user_contract(
     payload = {"email": "new@example.com", "username": "new", "password": "password"}
     payload.update(changes)
     response = client.post("/v1/auth/register", json=payload)
-    assert response.status_code == 422
+    assert response.status_code == 400
     register_use_case.register.assert_not_awaited()
     assert "location" not in response.headers
 
@@ -69,7 +69,7 @@ def test_existing_email_does_not_redirect(
         client: TestClient,
         register_use_case: NonCallableMock,
         login_use_case: NonCallableMock) -> None:
-    register_use_case.register.side_effect = HTTPException(status_code=409, detail="Email already exists")
+    register_use_case.register.side_effect = AlreadyExistsException(details={"entity": "user", "field": "email"})
     response = client.post("/v1/auth/register", json={
         "email": "existing@example.com", "username": "new", "password": "password",
     })

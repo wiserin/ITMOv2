@@ -1,15 +1,16 @@
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
-from sqlalchemy import URL
-from sqlalchemy.exc import IntegrityError, DBAPIError
-from sqlalchemy.ext.asyncio import (
-    AsyncSession, async_sessionmaker,
-    create_async_engine)
-from logging import getLogger, Logger
+from contextlib import asynccontextmanager
+from logging import Logger, getLogger
 
+from sqlalchemy import URL
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import app_config
-
+from app.infrastructure.database.errors import (
+    extract_sqlstate,
+    translate_database_error,
+)
 
 logger: Logger = getLogger("DATABASE-SESSION-MANAGER")
 
@@ -63,40 +64,24 @@ class SessionController:
                 logger.debug("Session committed successfully")
             except IntegrityError as exc:
                 await session.rollback()
-                sqlstate = self._extract_sqlstate(exc)
+                sqlstate = extract_sqlstate(exc)
                 logger.warning("IntegrityError (sqlstate=%s), transaction rolled back", sqlstate)
-                raise DatabaseException(sql_code=sqlstate or "") from exc
+                raise translate_database_error(exc) from exc
 
             except DBAPIError as exc:
                 await session.rollback()
-                sqlstate = self._extract_sqlstate(exc)
+                sqlstate = extract_sqlstate(exc)
                 logger.error("DBAPIError (sqlstate=%s), transaction rolled back", sqlstate)
 
-                if sqlstate in ("40001", "40P01"):
-                    raise RetryableException(sql_code=sqlstate) from exc
-                raise DatabaseException(sql_code=sqlstate or "") from exc
+                raise translate_database_error(exc) from exc
 
-            except Exception as exc:
+            except Exception:
                 await session.rollback()
-                logger.exception("Unexpected exception in database session, transaction rolled back: %s", exc)
+                logger.exception("Unexpected exception in database session, transaction rolled back")
                 raise
 
     async def dispose(self) -> None:
         await self._engine.dispose()
-
-    @staticmethod
-    def _extract_sqlstate(exc: DBAPIError) -> str:
-        orig = getattr(exc, "orig", None)
-        if not orig:
-            return ""
-
-        for obj in (orig, getattr(orig, "driver_exception", None), getattr(orig, "__cause__", None)):
-            sqlstate = getattr(obj, "sqlstate", None)
-            if sqlstate:
-                return str(sqlstate)
-
-        return ""
-
 
 database_factory = SessionController(
     postgres_user=app_config.postgres_user,

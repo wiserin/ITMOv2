@@ -1,10 +1,10 @@
-from typing import Optional
-from redis.asyncio import Redis, ConnectionPool
+from redis.asyncio import ConnectionPool, Redis
 from redis.asyncio.retry import Retry
 from redis.backoff import ExponentialBackoff
-from redis.exceptions import ConnectionError, TimeoutError
+from redis.exceptions import ConnectionError, RedisError, TimeoutError
 
 from app.config import app_config
+from app.domain.exceptions.entities import ServiceUnavailableException
 
 
 class RedisFactory:
@@ -13,7 +13,7 @@ class RedisFactory:
             redis_host: str,
             redis_port: int,
             redis_db: int,
-            redis_password: Optional[str] = None,
+            redis_password: str | None = None,
             max_connections: int = 20,
             socket_timeout: float = 2.0,
             socket_connect_timeout: float = 2.0) -> None:
@@ -45,13 +45,19 @@ class RedisFactory:
     async def check_connection(self) -> None:
         client = self.get_client()
         try:
-            await client.ping()
-        finally:
-            await client.aclose()
+            try:
+                await client.ping()
+            finally:
+                await client.aclose()
+        except RedisError as exc:
+            raise ServiceUnavailableException(details={"storage": "redis", "operation": "ping"}) from exc
 
 
     async def close(self) -> None:
-        await self._pool.disconnect()
+        try:
+            await self._pool.disconnect()
+        except RedisError as exc:
+            raise ServiceUnavailableException(details={"storage": "redis", "operation": "close"}) from exc
 
 
     async def __aenter__(self) -> Redis:

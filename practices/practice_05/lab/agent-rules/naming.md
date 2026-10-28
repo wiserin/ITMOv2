@@ -23,7 +23,11 @@ ORM-модели не являются доменными сущностями �
 - Зависимости и их инъекция — `backend/app/presentation/api/di/`.
 - Для каждого UseCase — отдельный DI-файл, например `di/login.py`, `di/register.py`, `di/auth.py`.
 - Pydantic-схемы запросов — `api/schemas/requests/`, ответов — `api/schemas/responses/`. Схемы login/register размещаются в соответствующих файлах этих директорий.
+- Документация ручек — `docs/endpoints/<group>.md`, один файл на группу. Она обновляется при каждом добавлении/изменении ручек и содержит назначение, права доступа, параметры, ответы, ошибки и дополнительные сведения.
 - Application DTO — `app/application/dto/`; они не зависят от Pydantic и FastAPI. DTO — внутренние объекты приложения, не внешние схемы Request/Response.
+- В application нет портов и репозиторных интерфейсов. Порты внешних интеграций находятся в domain; все операции с сущностями, включая поиск, выражаются методами доменных репозиториев в `domain/repositories/`.
+- Репозиторий принимает/возвращает доменные сущности, не application DTO. Адаптеры находятся в infrastructure; UseCase преобразует сущность в application DTO для результата сценария.
+- По умолчанию прикладная логика реализуется в UseCase. Application service с CRUD-логикой вокруг сложной сущности создаётся только по прямому указанию пользователя.
 - Все dataclasses создаются с `kw_only=True`; для моделей domain/application также обязателен `slots=True`. Аргументы передаются по имени.
 - Внешний Request преобразуется в application DTO в presentation. Результат UseCase преобразуется в Response там же; application DTO не принимаются и не возвращаются напрямую HTTP-ручкой.
 - Request-модель содержит типизированный метод `to_dto(self) -> CorrespondingDTO`, выполняющий маппинг presentation → application.
@@ -40,13 +44,23 @@ UseCase — конкретный класс application, реализующий 
 - UseCase не создаёт собственные репозитории, адаптеры, клиенты БД/Redis и не обращается к DI или глобальному `app_config`.
 - Абстракции относятся к зависимостям сценария, а реализация прикладной логики находится в самом UseCase.
 
+### Общая авторизация UseCase
+
+- Все UseCase наследуются от конкретного `BaseUseCase` в application.
+- `BaseUseCase.__init__` принимает `min_permission: UserRole = UserRole.USER` и сохраняет его как `access_level`.
+- Наследник задаёт минимальный уровень в своём `__init__` через `super().__init__(min_permission=...)`; для общего уровня достаточно `super().__init__()`.
+- `authorize(user: UserDTO) -> bool` проверяет `self.access_level <= user.role`. Роли образуют иерархию `USER (1) < MODERATOR (2) < ADMIN (3)`.
+- Защищённый сценарий вызывает `authorize` перед обращением к зависимостям; при отказе presentation возвращает `403`. `FindAccountsUseCase` требует уровень `MODERATOR`.
+- Аутентификация и проверка активности остаются задачей auth-сценария/DI. Публичные login/register не требуют существующего пользователя и не вызывают `authorize` до аутентификации.
+- Проверки владения ресурсом остаются отдельными от сравнения уровней ролей.
+
 UseCase **не callable**: `__call__` не используется. Сценарий имеет метод с именем, выражающим его доменную логику: `login`, `register`, `authenticate` и т. п.
 
 Обычная DI собирает и **возвращает экземпляр UseCase**, не выполняя прикладной сценарий. Функция сборки и `Annotated`-алиас объявляются отдельно; в presentation вызывается именованный метод:
 
 ```python
 def get_login_usecase() -> LoginUseCase:
-    return UnconfiguredLoginUseCase()
+    return LoginUseCase()
 
 
 LoginUseCaseDI = Annotated[
@@ -84,6 +98,25 @@ async def login(
 ## FastAPI
 
 - Не указывать `response_model` в декораторе: FastAPI выводит схему из аннотации возвращаемого типа.
+- Request-модели в GET-ручках подключаются как `Annotated[Model, Query()]`, а не как JSON-тело или набор отдельных query-параметров.
 - Ответы без JSON-тела, например `RedirectResponse`, не требуют выдуманной схемы тела.
 - JWT устанавливается сервером в `Secure; HttpOnly` cookie и автоматически отправляется браузером. Токен не возвращается в JSON и не извлекается из `Authorization`.
 - Срок сессии — внутреннее состояние SessionEntity; клиенту он не возвращается. Успешный login возвращает `200` с пустым JSON-объектом `LoginResponse` и устанавливает cookie.
+
+### Пагинация
+
+- Общая модель — `PaginationRequest` в `api/schemas/requests/pagination.py`. Все Request-модели с пагинацией наследуются от неё.
+- `limit`: по умолчанию 20, минимум 1, максимум 100. `offset`: по умолчанию 0, минимум 0, максимум 10 000.
+- Числовые строки query-параметров разбираются в int; границы валидируются Pydantic. Неизвестные query-поля запрещены; ошибки возвращаются общим mapper как `400`.
+- Если дополнительных query-параметров нет, использовать `pagination: Annotated[PaginationRequest, Query()]` напрямую. Префикс username в `/account/find/{username_prefix}` остаётся отдельным параметром пути и не требует специальной query-модели.
+- `PaginationRequest.to_dto()` возвращает внутренний `PaginationDTO`. UseCase передаёт `limit`/`offset` в репозиторий; постраничное чтение выполняется в хранилище, не срезом полного результата в application.
+- GET-ручки без query-параметров, например `/account/me`, не требуют искусственного Request или пагинации.
+
+## Ошибки
+
+- Собственные ошибки всех слоёв — общие доменные исключения из `domain/exceptions/entities/`, наследники `BaseDomainException` из `domain/exceptions/base.py`.
+- Использовать общие типы `NotFoundException`, `ConflictException`, `AlreadyExistsException`, `DataFormatException`, `AuthenticationException`, `PermissionException` и т. п. Не создавать `UserNotFound`, `AccountSearchForbiddenError` и другие типы с контекстом конкретной операции в имени.
+- Человекочитаемое описание находится в `message`, контекст (сущность, операция, поле, причина) — в `details`.
+- Infrastructure переводит ожидаемые ошибки библиотек в эти же доменные исключения. HTTP-статусы не задаются в domain, application, infrastructure или DI.
+- Единственное место преобразования доменных ошибок в HTTP — `presentation/setup_exceptions.py`, функция `setup_exception_handlers(app)`.
+- Формат ответа: `{"error": "<код>", "message": "<описание>", "details": {...}}`. Ошибки валидации FastAPI возвращают `400`, контекст ошибок полей — в `details.errors` без исходных секретов запроса.

@@ -99,7 +99,7 @@ Cookie не имеет `Domain`, `Expires` или `Max-Age`: это браузе
 
 ### Ошибки и подключение сценариев
 
-- `422` — ошибка Pydantic-валидации запроса.
+- `400` — ошибка Pydantic-валидации запроса.
 - `401` — неверные данные входа, неактивный пользователь, отсутствие cookie или недействительная сессия.
 - `409` — контракт конфликта при регистрации уже занятого email.
 - `501` — application-сценарий ещё не подключён.
@@ -108,7 +108,9 @@ Presentation преобразует `LoginRequest`/`RegisterRequest` в applicat
 
 Результат `LoginResultDTO` содержит только JWT; endpoint устанавливает cookie и формирует пустой `LoginResponse` через classmethod `LoginResponse.from_dto(result)`. Маппинг в Response не раскрывает токен в JSON. Срок сессии не покидает модель сессии. Application DTO — dataclasses с `slots=True, kw_only=True`, без зависимостей от Pydantic/FastAPI. Внешние Request/Response не имеют суффикса DTO.
 
-Реальные реализации UseCase пока не подключены; временные реализации в DI возвращают `501`. Создание пользователя, проверка пароля, создание сессии и подпись JWT не реализуются в presentation. API-тесты подменяют отдельные DI-провайдеры и проверяют HTTP-контракты без БД.
+Логика входа, регистрации и проверки сессии пока не реализована: конкретные UseCase выбрасывают общий `NotImplementedException`, который presentation mapper переводит в `501`. Создание пользователя, проверка пароля, создание сессии и подпись JWT не реализуются в presentation. API-тесты подменяют отдельные DI-провайдеры и проверяют HTTP-контракты без БД.
+
+Собственные ошибки во всех слоях — общие доменные исключения, наследники `BaseDomainException`; операция, сущность и причина задаются через `details`. Mapper presentation возвращает единый `error/message/details`; полный [контракт ошибок](errors.md). Заглушки UseCase выбрасывают `NotImplementedException`, а не HTTPException, и mapper переводит его в `501`.
 
 `AuthUseCase` — исключение в порядке DI: обёртка `get_authenticated_user` читает cookie через `APIKeyCookie`, вызывает `use_case.authenticate(token)` и возвращает `UserDTO`. Алиас `AuthUseCaseDI = Annotated[UserDTO, Depends(get_authenticated_user)]` используется в защищённой ручке как `user: AuthUseCaseDI`. Сам UseCase собирается функцией `get_auth_usecase`. Application AuthUseCase принимает строку токена, не cookie/request; схема cookie-аутентификации отражается в OpenAPI как `in: cookie`.
 
@@ -137,7 +139,7 @@ Presentation преобразует `LoginRequest`/`RegisterRequest` в applicat
 
 - Пароли и секреты сессий хэшируются тяжёлым алгоритмом **Argon2id** с индивидуальной солью. В БД хранится полная кодированная строка хэша с параметрами; параметры стоимости предстоит подобрать и закрепить в конфигурации.
 - Хэширование и verify выполняются вне асинхронного event loop через соответствующий инфраструктурный адаптер. JWT-подпись и Argon2id — разные операции: одна не заменяет другую.
-- Domain содержит инварианты Session и Credential; application координирует вход, проверку, продление, выход и RBAC через порты.
+- Domain содержит сущности, общие исключения, репозиторные интерфейсы и порты внешних интеграций. Application не содержит портов: UseCase координируют вход, проверку, продление, выход и RBAC через доменные репозитории и порты. Операции с сущностями, включая поиск, относятся к репозиториям.
 - Infrastructure реализует хэширование, JWT, репозитории и атомарные изменения БД. Presentation отвечает за Pydantic DTO, cookie, DI и HTTP-ответы.
 
 ## После MVP
