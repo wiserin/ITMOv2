@@ -4,4 +4,21 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic-settings>=2.16.2",
+]
+
+[dependency-groups]
+migrations = [
+    "alembic>=1.20.1",
+    "sqlalchemy>=2.1.6",
+]
+service = [
+    "alembic>=1.20.1",
+    "fastapi>=0.162.0",
+    "redis>=8.1.0",
+    "sqlalchemy>=2.1.6",
+]
+tests = [
+    "pytest>=9.2.0",
+]
