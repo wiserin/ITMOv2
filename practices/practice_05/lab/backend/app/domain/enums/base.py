@@ -15,4 +15,6 @@ class BaseIntEnum(IntEnum):
         for member in cls:
             if member.to_string() == value:
                 return member
-        raise DataFormatException(details={"enum": cls.__name__, "value": value})
+        raise DataFormatException(
+            details={"enum": cls.__name__, "value": value},
+        )

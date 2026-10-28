@@ -24,7 +24,8 @@ def test_role_hierarchy(
         allowed: bool) -> None:
     use_case = BaseUseCase(min_permission=minimum)
     user = UserDTO(
-        id=uuid4(), email="user@example.com", username="user", role=role, is_active=True,
+        id=uuid4(), email="user@example.com", username="user",
+        role=role, is_active=True,
     )
     assert use_case.authorize(user) is allowed
 

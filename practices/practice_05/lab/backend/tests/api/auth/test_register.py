@@ -15,10 +15,13 @@ def test_registration_redirects_only_after_success(
         login_use_case: NonCallableMock) -> None:
     response = client.post("/v1/auth/register", json={
         "email": " NEW@EXAMPLE.COM ", "username": " anime-fan ",
-        "password": " original password ", "display_name": " Anime Fan ",
+        "password": " original password ",
+        "display_name": " Anime Fan ",
     })
     assert response.status_code == 303
-    assert response.headers["location"] == "https://testserver/v1/auth/login"
+    assert response.headers["location"] == (
+        "https://testserver/v1/auth/login"
+    )
     assert response.content == b""
     assert "set-cookie" not in response.headers
     register_use_case.register.assert_awaited_once()
@@ -32,12 +35,16 @@ def test_registration_redirects_only_after_success(
     login_use_case.login.assert_not_awaited()
 
 
-def test_display_name_is_optional(client: TestClient, register_use_case: NonCallableMock) -> None:
+def test_display_name_is_optional(
+        client: TestClient,
+        register_use_case: NonCallableMock) -> None:
     response = client.post("/v1/auth/register", json={
-        "email": "new@example.com", "username": "anime-fan", "password": "root",
+        "email": "new@example.com",
+        "username": "anime-fan", "password": "root",
     })
     assert response.status_code == 303
-    assert register_use_case.register.call_args.args[0].display_name is None
+    data = register_use_case.register.call_args.args[0]
+    assert data.display_name is None
 
 
 @pytest.mark.parametrize("changes", [
@@ -57,7 +64,10 @@ def test_registration_fields_match_user_contract(
         client: TestClient,
         register_use_case: NonCallableMock,
         changes: dict[str, object]) -> None:
-    payload = {"email": "new@example.com", "username": "new", "password": "password"}
+    payload = {
+        "email": "new@example.com",
+        "username": "new", "password": "password",
+    }
     payload.update(changes)
     response = client.post("/v1/auth/register", json=payload)
     assert response.status_code == 400
@@ -69,9 +79,12 @@ def test_existing_email_does_not_redirect(
         client: TestClient,
         register_use_case: NonCallableMock,
         login_use_case: NonCallableMock) -> None:
-    register_use_case.register.side_effect = AlreadyExistsException(details={"entity": "user", "field": "email"})
+    register_use_case.register.side_effect = AlreadyExistsException(
+        details={"entity": "user", "field": "email"},
+    )
     response = client.post("/v1/auth/register", json={
-        "email": "existing@example.com", "username": "new", "password": "password",
+        "email": "existing@example.com",
+        "username": "new", "password": "password",
     })
     assert response.status_code == 409
     assert "location" not in response.headers
@@ -82,14 +95,14 @@ def test_auth_openapi_contract(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
     login = schema["paths"]["/v1/auth/login"]["post"]
     register = schema["paths"]["/v1/auth/register"]["post"]
-    assert login["requestBody"]["content"]["application/json"]["schema"]["$ref"].endswith(
-        "/LoginRequest",
-    )
-    assert login["responses"]["200"]["content"]["application/json"]["schema"]["$ref"].endswith(
-        "/LoginResponse",
-    )
+    body = login["requestBody"]["content"]["application/json"]
+    content = login["responses"]["200"]["content"]
+    response = content["application/json"]
+    assert body["schema"]["$ref"].endswith("/LoginRequest")
+    assert response["schema"]["$ref"].endswith("/LoginResponse")
     assert "Location" in register["responses"]["303"]["headers"]
     assert "content" not in register["responses"]["303"]
     assert "200" not in register["responses"]
-    assert schema["components"]["schemas"]["RegisterRequest"]["additionalProperties"] is False
-    assert schema["components"]["schemas"]["LoginResponse"]["properties"] == {}
+    schemas = schema["components"]["schemas"]
+    assert schemas["RegisterRequest"]["additionalProperties"] is False
+    assert schemas["LoginResponse"]["properties"] == {}

@@ -50,14 +50,18 @@ class RedisFactory:
             finally:
                 await client.aclose()
         except RedisError as exc:
-            raise ServiceUnavailableException(details={"storage": "redis", "operation": "ping"}) from exc
+            raise ServiceUnavailableException(
+                details={"storage": "redis", "operation": "ping"},
+            ) from exc
 
 
     async def close(self) -> None:
         try:
             await self._pool.disconnect()
         except RedisError as exc:
-            raise ServiceUnavailableException(details={"storage": "redis", "operation": "close"}) from exc
+            raise ServiceUnavailableException(
+                details={"storage": "redis", "operation": "close"},
+            ) from exc
 
 
     async def __aenter__(self) -> Redis:

@@ -4,10 +4,17 @@ import pytest
 from sqlalchemy import TIMESTAMP, inspect
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from app.infrastructure.database.models import Base, CredentialORM, SessionORM, UserORM
+from app.infrastructure.database.models import (
+    Base,
+    CredentialORM,
+    SessionORM,
+    UserORM,
+)
 
 
-@pytest.mark.parametrize("model", [UserORM, CredentialORM, SessionORM])
+@pytest.mark.parametrize(
+    "model", [UserORM, CredentialORM, SessionORM],
+)
 def test_primary_key_is_external_uuid(model: type[Base]) -> None:
     table = model.__table__
     assert list(table.primary_key.columns.keys()) == ["id"]
@@ -28,7 +35,9 @@ def test_primary_key_is_external_uuid(model: type[Base]) -> None:
     (SessionORM, "closed_at"),
     (SessionORM, "expires_at"),
 ])
-def test_timestamps_preserve_timezone(model: type[Base], field: str) -> None:
+def test_timestamps_preserve_timezone(
+        model: type[Base],
+        field: str) -> None:
     column = model.__table__.c[field]
     assert isinstance(column.type, TIMESTAMP)
     assert column.type.timezone
@@ -39,7 +48,9 @@ def test_timestamps_preserve_timezone(model: type[Base], field: str) -> None:
     (CredentialORM, "credentials"),
     (SessionORM, "sessions"),
 ])
-def test_user_relationship_and_database_cascade(model: type[Base], collection: str) -> None:
+def test_user_relationship_and_database_cascade(
+        model: type[Base],
+        collection: str) -> None:
     table = model.__table__
     assert table.metadata is Base.metadata
     column = table.c.user_id

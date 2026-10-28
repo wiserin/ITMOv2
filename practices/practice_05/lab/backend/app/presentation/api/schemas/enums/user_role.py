@@ -17,4 +17,6 @@ class UserRoleResponse(StrEnum):
         try:
             return cls(UserRole(role).to_string())
         except ValueError as exc:
-            raise DataFormatException(details={"field": "role", "value": role}) from exc
+            raise DataFormatException(
+                details={"field": "role", "value": role},
+            ) from exc

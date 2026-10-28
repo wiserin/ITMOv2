@@ -24,10 +24,18 @@ class FindAccountsUseCase(BaseUseCase):
             requester: UserDTO) -> FindAccountsResultDTO:
         if not self.authorize(requester):
             raise PermissionException(details={
-                "entity": "user", "operation": "find_by_username_prefix",
+                "entity": "user",
+                "operation": "find_by_username_prefix",
                 "min_permission": int(self.access_level),
             })
-        accounts = await self._user_repository.find_by_username_prefix(
-            username_prefix, limit=pagination.limit, offset=pagination.offset,
+        repository = self._user_repository
+        accounts = await repository.find_by_username_prefix(
+            username_prefix,
+            limit=pagination.limit,
+            offset=pagination.offset,
         )
-        return FindAccountsResultDTO(accounts=tuple(UserDTO.from_entity(account) for account in accounts))
+        return FindAccountsResultDTO(
+            accounts=tuple(
+                UserDTO.from_entity(account) for account in accounts
+            ),
+        )

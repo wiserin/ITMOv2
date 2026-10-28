@@ -63,6 +63,7 @@ REST-клиент обрабатывает `303/Location` как переход 
 
 - Оба endpoint используют `Request.to_dto()`. Login создаёт ответ через `LoginResponse.from_dto()`; при регистрации возвращается `RedirectResponse` без схемы JSON-тела.
 - DI возвращает UseCase, presentation вызывает именованные методы `login`/`register`. Application DTO не являются HTTP-схемами.
+- Репозитории уже внедряются через конструкторы: login получает UserRepository, CredentialRepository, SessionRepository; register — UserRepository и CredentialRepository. Все адаптеры используют общую сессию с commit/rollback в фабрике. Бизнес-логика входа и регистрации ещё не реализована (`501`).
 - UseCase наследуют `BaseUseCase` с уровнем USER по умолчанию. Login/register публичны: `authorize(user)` не вызывается перед входом или созданием пользователя, когда аутентифицированного пользователя ещё нет.
 - Сейчас реализован presentation-контракт; реальные сценарии входа и регистрации ещё не подключены. API-тесты проверяют успешные ответы и ошибки с подменой зависимостей.
 - Bootstrap на новой БД: username `root`, email `root@example.com`, начальный пароль `root`, роль admin. Специального обхода аутентификации для него нет.

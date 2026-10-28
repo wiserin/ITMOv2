@@ -22,6 +22,7 @@ service = [
     "pydantic[email]>=2.14.1",
     "redis>=8.1.0",
     "sqlalchemy[asyncio]>=2.1.6",
+    "uvicorn>=0.38.0",
 ]
 tests = [
     { include-group = "service" },
@@ -33,3 +34,9 @@ tests = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 70
+
+[tool.ruff.lint]
+extend-select = ["E501"]

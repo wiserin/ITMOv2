@@ -23,7 +23,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 COPY migrations/ ./migrations/
 COPY alembic.ini .
-COPY app/infrastructure/database/models ./app/infrastructure/database/models
+COPY app/infrastructure/database/models \
+    ./app/infrastructure/database/models
 COPY app/config ./app/config/
 
 CMD [ "alembic", "upgrade", "head" ]

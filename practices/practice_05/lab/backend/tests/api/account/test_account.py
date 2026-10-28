@@ -8,14 +8,21 @@ from uuid import uuid4
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import DBAPIError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.user import UserEntity
 from app.domain.enums.user_role import UserRole
 from app.domain.exceptions.entities import AuthenticationException
 from app.presentation.api.cookies import SESSION_COOKIE_NAME
 from app.presentation.api.di.auth import get_auth_usecase
+from app.presentation.api.di.clients.postgres import (
+    get_postgres_session,
+)
 from app.presentation.api.routes import router_v1
 from app.presentation.setup_exceptions import setup_exception_handlers
+
+FIND_PATH = "/v1/account/find/{username_prefix}"
 
 
 @pytest.mark.parametrize("role", list(UserRole))
@@ -29,15 +36,21 @@ def test_me_returns_current_account_for_every_role(
     response = client.get("/v1/account/me")
     assert response.status_code == 200
     assert response.json() == {
-        "id": str(user.id), "email": user.email, "username": user.username,
-        "display_name": user.display_name, "role": role.to_string(), "is_active": True,
+        "id": str(user.id),
+        "email": user.email,
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": role.to_string(),
+        "is_active": True,
     }
     assert response.headers["cache-control"] == "no-store"
-    auth_use_case.authenticate.assert_awaited_once_with("session-token")
+    auth_use_case.authenticate.assert_awaited_once_with(
+        "session-token",
+    )
 
 
 @pytest.mark.parametrize("role", [UserRole.MODERATOR, UserRole.ADMIN])
-def test_moderator_and_admin_can_find_accounts_with_duplicate_usernames(
+def test_moderator_and_admin_find_duplicate_usernames(
         client: TestClient,
         auth_use_case: NonCallableMock,
         user_repository: NonCallableMock,
@@ -48,7 +61,8 @@ def test_moderator_and_admin_can_find_accounts_with_duplicate_usernames(
     now = datetime.now(UTC)
     accounts = tuple(
         UserEntity(
-            id=uuid4(), email=f"alice{number}@example.com", username="alice",
+            id=uuid4(),
+            email=f"alice{number}@example.com", username="alice",
             display_name=None, role=UserRole.USER, is_active=True,
             created_at=now, updated_at=now,
         )
@@ -59,10 +73,14 @@ def test_moderator_and_admin_can_find_accounts_with_duplicate_usernames(
     response = client.get("/v1/account/find/ali")
     assert response.status_code == 200
     result = response.json()["accounts"]
-    assert [account["id"] for account in result] == [str(account.id) for account in accounts]
+    assert [account["id"] for account in result] == [
+        str(account.id) for account in accounts
+    ]
     assert all(account["role"] == "user" for account in result)
     assert response.headers["cache-control"] == "no-store"
-    user_repository.find_by_username_prefix.assert_awaited_once_with("ali", limit=20, offset=0)
+    user_repository.find_by_username_prefix.assert_awaited_once_with(
+        "ali", limit=20, offset=0,
+    )
 
 
 def test_regular_user_is_denied_before_search(
@@ -78,19 +96,25 @@ def test_regular_user_is_denied_before_search(
     user_repository.find_by_username_prefix.assert_not_awaited()
 
 
-@pytest.mark.parametrize("path", ["/v1/account/me", "/v1/account/find/ali"])
+@pytest.mark.parametrize("path", [
+    "/v1/account/me", "/v1/account/find/ali",
+])
 def test_account_endpoints_require_cookie(
         client: TestClient,
         auth_use_case: NonCallableMock,
         user_repository: NonCallableMock,
         path: str) -> None:
-    response = client.get(path, headers={"Authorization": "Bearer header-token"})
+    response = client.get(
+        path, headers={"Authorization": "Bearer header-token"},
+    )
     assert response.status_code == 401
     auth_use_case.authenticate.assert_not_awaited()
     user_repository.find_by_username_prefix.assert_not_awaited()
 
 
-@pytest.mark.parametrize("path", ["/v1/account/me", "/v1/account/find/ali"])
+@pytest.mark.parametrize("path", [
+    "/v1/account/me", "/v1/account/find/ali",
+])
 def test_inactive_accounts_are_not_authenticated(
         client: TestClient,
         auth_use_case: NonCallableMock,
@@ -115,7 +139,9 @@ def test_invalid_prefix_is_not_sent_to_search(
     user_repository.find_by_username_prefix.assert_not_awaited()
 
 
-@pytest.mark.parametrize("encoded, expected", [("%20Ali%20", "Ali"), ("%25", "%"), ("_", "_")])
+@pytest.mark.parametrize("encoded, expected", [
+    ("%20Ali%20", "Ali"), ("%25", "%"), ("_", "_"),
+])
 def test_prefix_is_normalized_without_changing_case_or_wildcards(
         client: TestClient,
         user_repository: NonCallableMock,
@@ -125,44 +151,59 @@ def test_prefix_is_normalized_without_changing_case_or_wildcards(
     response = client.get(f"/v1/account/find/{encoded}")
     assert response.status_code == 200
     assert response.json() == {"accounts": []}
-    user_repository.find_by_username_prefix.assert_awaited_once_with(expected, limit=20, offset=0)
+    user_repository.find_by_username_prefix.assert_awaited_once_with(
+        expected, limit=20, offset=0,
+    )
 
 
 def test_expired_session_does_not_search(
         client: TestClient,
         auth_use_case: NonCallableMock,
         user_repository: NonCallableMock) -> None:
-    auth_use_case.authenticate.side_effect = AuthenticationException(details={"reason": "session_expired"})
+    auth_use_case.authenticate.side_effect = AuthenticationException(
+        details={"reason": "session_expired"},
+    )
     client.cookies.set(SESSION_COOKIE_NAME, "session-token")
     assert client.get("/v1/account/find/ali").status_code == 401
     user_repository.find_by_username_prefix.assert_not_awaited()
 
 
-def test_unconfigured_search_is_not_an_empty_result(auth_use_case: NonCallableMock) -> None:
+def test_database_failure_is_not_an_empty_result(
+        auth_use_case: NonCallableMock) -> None:
     app = FastAPI()
     setup_exception_handlers(app)
     app.include_router(router_v1)
     app.dependency_overrides[get_auth_usecase] = lambda: auth_use_case
+    session = NonCallableMock(spec=AsyncSession)
+    session.scalars.side_effect = DBAPIError(
+        None, None, ConnectionError("database unavailable"),
+    )
+    app.dependency_overrides[get_postgres_session] = lambda: session
     with TestClient(app, base_url="https://testserver") as client:
         client.cookies.set(SESSION_COOKIE_NAME, "session-token")
         response = client.get("/v1/account/find/ali")
-    assert response.status_code == 501
+    assert response.status_code == 503
     assert response.json() == {
-        "error": "not_implemented", "message": "Operation is not implemented",
-        "details": {"entity": "user", "operation": "find_by_username_prefix"},
+        "error": "service_unavailable",
+        "message": "Service is temporarily unavailable",
+        "details": {"storage": "postgresql", "sqlstate": ""},
     }
 
 
-def test_account_openapi_uses_cookie_and_string_roles(client: TestClient) -> None:
+def test_account_openapi_uses_cookie_and_string_roles(
+        client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
-    for path in ("/v1/account/me", "/v1/account/find/{username_prefix}"):
-        assert schema["paths"][path]["get"]["security"] == [{"SessionCookie": []}]
+    for path in ("/v1/account/me", FIND_PATH):
+        assert schema["paths"][path]["get"]["security"] == [
+            {"SessionCookie": []},
+        ]
     role = schema["components"]["schemas"]["UserRoleResponse"]
     assert role["type"] == "string"
     assert role["enum"] == ["user", "moderator", "admin"]
-    assert "403" in schema["paths"]["/v1/account/find/{username_prefix}"]["get"]["responses"]
-    assert "400" in schema["paths"]["/v1/account/find/{username_prefix}"]["get"]["responses"]
-    assert "422" not in schema["paths"]["/v1/account/find/{username_prefix}"]["get"]["responses"]
+    responses = schema["paths"][FIND_PATH]["get"]["responses"]
+    assert "403" in responses
+    assert "400" in responses
+    assert "422" not in responses
 
 
 @pytest.mark.parametrize("params, limit, offset", [
@@ -181,7 +222,9 @@ def test_pagination_query_is_parsed_and_forwarded_to_repository(
     response = client.get("/v1/account/find/ali", params=params)
     assert response.status_code == 200
     assert response.json() == {"accounts": []}
-    user_repository.find_by_username_prefix.assert_awaited_once_with("ali", limit=limit, offset=offset)
+    user_repository.find_by_username_prefix.assert_awaited_once_with(
+        "ali", limit=limit, offset=offset,
+    )
 
 
 @pytest.mark.parametrize("params", [
@@ -215,29 +258,43 @@ def test_find_returns_requested_repository_page(
     now = datetime.now(UTC)
     accounts = tuple(
         UserEntity(
-            username=f"alice{number}", email=f"alice{number}@example.com",
+            username=f"alice{number}",
+            email=f"alice{number}@example.com",
             created_at=now, updated_at=now,
         )
         for number in range(4)
     )
     user_repository.find_by_username_prefix.side_effect = (
-        lambda username_prefix, *, limit, offset: accounts[offset:offset + limit]
+        lambda username_prefix, *, limit, offset: (
+            accounts[offset:offset + limit]
+        )
     )
     client.cookies.set(SESSION_COOKIE_NAME, "session-token")
-    response = client.get("/v1/account/find/ali", params={"limit": 2, "offset": 1})
+    response = client.get(
+        "/v1/account/find/ali", params={"limit": 2, "offset": 1},
+    )
     assert response.status_code == 200
-    assert [account["id"] for account in response.json()["accounts"]] == [
+    result = response.json()["accounts"]
+    assert [account["id"] for account in result] == [
         str(account.id) for account in accounts[1:3]
     ]
-    user_repository.find_by_username_prefix.assert_awaited_once_with("ali", limit=2, offset=1)
+    user_repository.find_by_username_prefix.assert_awaited_once_with(
+        "ali", limit=2, offset=1,
+    )
 
 
-def test_pagination_is_documented_as_query_model_without_get_body(client: TestClient) -> None:
-    operation = client.get("/openapi.json").json()["paths"]["/v1/account/find/{username_prefix}"]["get"]
+def test_pagination_query_model_has_no_get_body(
+        client: TestClient) -> None:
+    paths = client.get("/openapi.json").json()["paths"]
+    operation = paths[FIND_PATH]["get"]
     assert "requestBody" not in operation
-    parameters = {parameter["name"]: parameter for parameter in operation["parameters"]}
+    parameters = {
+        parameter["name"]: parameter
+        for parameter in operation["parameters"]
+    }
     assert parameters["username_prefix"]["in"] == "path"
-    for field, default, minimum, maximum in (("limit", 20, 1, 100), ("offset", 0, 0, 10_000)):
+    bounds = (("limit", 20, 1, 100), ("offset", 0, 0, 10_000))
+    for field, default, minimum, maximum in bounds:
         parameter = parameters[field]
         assert parameter["in"] == "query"
         assert not parameter["required"]

@@ -4,7 +4,9 @@ from fastapi import APIRouter, Request, status
 from fastapi.responses import RedirectResponse
 
 from app.presentation.api.di.register import RegisterUseCaseDI
-from app.presentation.api.schemas.requests.register import RegisterRequest
+from app.presentation.api.schemas.requests.register import (
+    RegisterRequest,
+)
 from app.presentation.api.schemas.responses.error import ErrorResponse
 
 router = APIRouter()
@@ -18,14 +20,20 @@ router = APIRouter()
     summary="Регистрация и перенаправление на вход",
     responses={
         status.HTTP_303_SEE_OTHER: {
-            "description": "Пользователь создан; следующий шаг — вход",
-            "headers": {"Location": {"schema": {"type": "string"}}},
+            "description": (
+                "Пользователь создан; следующий шаг — вход"
+            ),
+            "headers": {
+                "Location": {"schema": {"type": "string"}},
+            },
         },
         status.HTTP_409_CONFLICT: {
-            "model": ErrorResponse, "description": "Email уже зарегистрирован",
+            "model": ErrorResponse,
+            "description": "Email уже зарегистрирован",
         },
         status.HTTP_501_NOT_IMPLEMENTED: {
-            "model": ErrorResponse, "description": "Сценарий регистрации ещё не подключён",
+            "model": ErrorResponse,
+            "description": "Сценарий регистрации ещё не подключён",
         },
     },
 )

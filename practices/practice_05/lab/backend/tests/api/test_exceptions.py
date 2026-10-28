@@ -35,7 +35,10 @@ def test_domain_errors_are_mapped_in_one_place(
         code: str) -> None:
     app = FastAPI()
     setup_exception_handlers(app)
-    error = exception_type("Readable message", details={"entity": "user", "id": "example"})
+    error = exception_type(
+        "Readable message",
+        details={"entity": "user", "id": "example"},
+    )
 
     @app.get("/failure")
     async def fail() -> None:
@@ -45,35 +48,47 @@ def test_domain_errors_are_mapped_in_one_place(
         response = client.get("/failure")
     assert response.status_code == status_code
     assert response.json() == {
-        "error": code, "message": error.message, "details": error.details,
+        "error": code,
+        "message": error.message,
+        "details": error.details,
     }
 
 
 @pytest.mark.parametrize("entity", ["user", "location"])
-def test_one_error_type_carries_different_entity_context(entity: str) -> None:
+def test_one_error_type_carries_different_entity_context(
+        entity: str) -> None:
     app = FastAPI()
     setup_exception_handlers(app)
 
     @app.get("/failure")
     async def fail() -> None:
-        raise NotFoundException(details={"entity": entity, "operation": "get"})
+        raise NotFoundException(
+            details={"entity": entity, "operation": "get"},
+        )
 
     with TestClient(app) as client:
         response = client.get("/failure")
     assert response.status_code == 404
     assert response.json()["message"] == "Entity not found"
-    assert response.json()["details"] == {"entity": entity, "operation": "get"}
+    assert response.json()["details"] == {
+        "entity": entity, "operation": "get",
+    }
 
 
-def test_validation_is_400_without_echoing_request_secrets(client: TestClient) -> None:
+def test_validation_is_400_without_echoing_request_secrets(
+        client: TestClient) -> None:
     response = client.post("/v1/auth/login", json={
-        "email": "invalid", "password": "private-password", "token": "private-token",
+        "email": "invalid",
+        "password": "private-password", "token": "private-token",
     })
     assert response.status_code == 400
     data = response.json()
     assert data["error"] == "bad_request"
     assert data["message"] == "Ошибка валидации данных."
-    assert {tuple(error["loc"]) for error in data["details"]["errors"]} == {
+    locations = {
+        tuple(error["loc"]) for error in data["details"]["errors"]
+    }
+    assert locations == {
         ("body", "email"), ("body", "token"),
     }
     assert "private-password" not in response.text

@@ -8,7 +8,7 @@ from app.application.dto.login import LoginResultDTO
 
 
 class LoginResponse(BaseModel):
-    """Successful login; the session token is delivered exclusively through a cookie."""
+    """Successful login; the token is delivered through a cookie."""
 
     model_config = ConfigDict(strict=True, extra="forbid")
 

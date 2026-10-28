@@ -114,6 +114,8 @@ Presentation преобразует `LoginRequest`/`RegisterRequest` в applicat
 
 `AuthUseCase` — исключение в порядке DI: обёртка `get_authenticated_user` читает cookie через `APIKeyCookie`, вызывает `use_case.authenticate(token)` и возвращает `UserDTO`. Алиас `AuthUseCaseDI = Annotated[UserDTO, Depends(get_authenticated_user)]` используется в защищённой ручке как `user: AuthUseCaseDI`. Сам UseCase собирается функцией `get_auth_usecase`. Application AuthUseCase принимает строку токена, не cookie/request; схема cookie-аутентификации отражается в OpenAPI как `in: cookie`.
 
+Обёртка текущего пользователя расположена в `api/di/entities/user.py`; фабрика AuthUseCase — в `api/di/auth.py`. Репозиторные зависимости собираются в `di/repositories/` из общей `PostgresSessionDI` в `di/clients/`. Правила ORM-маппинга, flush и владения транзакцией — в [документации репозиториев](repositories.md).
+
 ## Проверка каждого запроса
 
 1. DI-обёртка извлекает JWT из `session_token` cookie. Отсутствующий или некорректный токен на защищённом endpoint отклоняется. Передать токен в AuthUseCase.

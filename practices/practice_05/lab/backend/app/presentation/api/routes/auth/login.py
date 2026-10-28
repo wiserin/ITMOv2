@@ -17,10 +17,14 @@ router = APIRouter()
     summary="Вход по email и паролю",
     responses={
         status.HTTP_401_UNAUTHORIZED: {
-            "model": ErrorResponse, "description": "Неверные данные или неактивный пользователь",
+            "model": ErrorResponse,
+            "description": (
+                "Неверные данные или неактивный пользователь"
+            ),
         },
         status.HTTP_501_NOT_IMPLEMENTED: {
-            "model": ErrorResponse, "description": "Сценарий входа ещё не подключён",
+            "model": ErrorResponse,
+            "description": "Сценарий входа ещё не подключён",
         },
     },
 )

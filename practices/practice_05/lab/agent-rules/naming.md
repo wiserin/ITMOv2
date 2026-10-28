@@ -22,6 +22,8 @@ ORM-модели не являются доменными сущностями �
 
 - Зависимости и их инъекция — `backend/app/presentation/api/di/`.
 - Для каждого UseCase — отдельный DI-файл, например `di/login.py`, `di/register.py`, `di/auth.py`.
+- Внутри DI выделены `clients/` (PostgreSQL/Redis), `repositories/`, `ports/` и `entities/` (в том числе текущий пользователь). Для каждого провайдера используется функция `get_*` и отдельный `Annotated[..., Depends(get_*)]`-алиас.
+- DI UseCase принимает готовые алиасы репозиториев/портов в сигнатуре и передаёт зависимости в конструктор. Репозиторная DI принимает `PostgresSessionDI` и возвращает интерфейс с конкретным SQLAlchemy-адаптером.
 - Pydantic-схемы запросов — `api/schemas/requests/`, ответов — `api/schemas/responses/`. Схемы login/register размещаются в соответствующих файлах этих директорий.
 - Документация ручек — `docs/endpoints/<group>.md`, один файл на группу. Она обновляется при каждом добавлении/изменении ручек и содержит назначение, права доступа, параметры, ответы, ошибки и дополнительные сведения.
 - Application DTO — `app/application/dto/`; они не зависят от Pydantic и FastAPI. DTO — внутренние объекты приложения, не внешние схемы Request/Response.
@@ -59,8 +61,15 @@ UseCase **не callable**: `__call__` не используется. Сцена�
 Обычная DI собирает и **возвращает экземпляр UseCase**, не выполняя прикладной сценарий. Функция сборки и `Annotated`-алиас объявляются отдельно; в presentation вызывается именованный метод:
 
 ```python
-def get_login_usecase() -> LoginUseCase:
-    return LoginUseCase()
+def get_login_usecase(
+        user_repository: UserRepositoryDI,
+        credential_repository: CredentialRepositoryDI,
+        session_repository: SessionRepositoryDI) -> LoginUseCase:
+    return LoginUseCase(
+        user_repository=user_repository,
+        credential_repository=credential_repository,
+        session_repository=session_repository,
+    )
 
 
 LoginUseCaseDI = Annotated[
@@ -79,7 +88,20 @@ async def login(
 
 `AuthUseCase` — единственное исключение: DI-обёртка `get_authenticated_user` извлекает JWT из HttpOnly cookie, передаёт токен в `use_case.authenticate(token)` и возвращает аутентифицированного пользователя (в текущем контракте — `UserDTO`). `AuthUseCaseDI = Annotated[UserDTO, Depends(get_authenticated_user)]`. Endpoint принимает `user: AuthUseCaseDI`, не вызывая auth повторно. Сам AuthUseCase собирается через `get_auth_usecase`, принимает строку токена и не знает о cookie или FastAPI.
 
+### ORM-репозитории и транзакции
+
+- Сначала определяются доменные интерфейсы Repository, затем их инфраструктурные реализации.
+- SQLAlchemy-адаптер получает `AsyncSession` извне через `__init__`. Адаптер не создаёт сессии и не обращается к фабрике/DI.
+- Запросы пишутся через ORM; всё I/O выполняется явно и асинхронно. Связи ORM имеют `lazy="raise"`; при необходимости используется явная eager-загрузка.
+- Каждый адаптер имеет `_to_orm(entity)` и `_from_orm(orm)`. Изменения принимают доменную сущность, работают с ORM и возвращают доменную сущность. Чтения используют UUID/критерии и возвращают сущности; списки всегда ограничены limit/offset.
+- После создания, изменения и удаления вызывается `await session.flush()`. В адаптерах запрещены `commit()` и `rollback()`.
+- Commit/rollback выполняет фабрика при выходе из контекста сессии. Только явно обоснованный UseCase может самостоятельно управлять commit.
+- Все репозитории запроса используют одну кэшированную `PostgresSessionDI`. Её yield-dependency имеет `scope="function"`, чтобы финальный commit выполнялся до отправки успешного HTTP-ответа.
+- Блокировки чтения запрашиваются явно через `for_update=True`; update/delete используют явный SELECT FOR UPDATE. Смена текущего пароля и авторизация остаются многошаговыми UseCase в общей транзакции.
+
 ## Форматирование многострочных сигнатур
+
+Общий кодстайл описан в `agent-rules/codestyle.md`. Максимальная длина строки Python-кода — **70 символов**, включая отступ; это касается также тестов, комментариев и миграций. Правило проверяется Ruff E501.
 
 - При переносе параметров функции или метода на отдельные строки использовать дополнительный уровень отступа (TAB): параметры располагаются на 8 пробелов глубже строки `def`/`async def`.
 - Закрывающая скобка, аннотация возвращаемого типа и двоеточие остаются на строке последнего параметра.

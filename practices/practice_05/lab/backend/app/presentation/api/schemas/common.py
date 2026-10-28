@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, EmailStr, Field, SecretStr
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    EmailStr,
+    Field,
+    SecretStr,
+)
 
 
 def normalize_email(value: object) -> object:

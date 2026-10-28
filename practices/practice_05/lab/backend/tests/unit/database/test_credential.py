@@ -24,7 +24,8 @@ def test_only_current_password_is_unique_per_user() -> None:
 def test_password_hash_is_required_and_nonempty() -> None:
     column = CredentialORM.__table__.c.password_hash
     assert not column.nullable
-    ddl = str(CreateTable(CredentialORM.__table__).compile(dialect=dialect()))
+    table = CreateTable(CredentialORM.__table__)
+    ddl = str(table.compile(dialect=dialect()))
     assert "is_current BOOLEAN DEFAULT true NOT NULL" in ddl
     assert (
         "CONSTRAINT ck_credentials_password_hash_not_blank "
@@ -33,6 +34,8 @@ def test_password_hash_is_required_and_nonempty() -> None:
 
 
 def test_repr_does_not_expose_password_hash() -> None:
-    credential = CredentialORM(id=uuid4(), password_hash="private-password-hash")
+    credential = CredentialORM(
+        id=uuid4(), password_hash="private-password-hash",
+    )
     assert "private-password-hash" not in repr(credential)
     assert "private-password-hash" not in str(credential)

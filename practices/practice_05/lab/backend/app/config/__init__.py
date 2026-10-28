@@ -1,9 +1,6 @@
 import os
-from uuid import UUID
 
-from pydantic import PrivateAttr
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 CONFIG_MODEL_CONFIG = SettingsConfigDict(
     alias_generator=lambda field_name: field_name.upper(),

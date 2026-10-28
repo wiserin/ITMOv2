@@ -8,8 +8,14 @@ from .auth import router as auth_router
 router_v1 = APIRouter(
     prefix="/v1",
     responses={
-        400: {"model": ErrorResponse, "description": "Некорректные входные данные"},
-        "4XX": {"model": ErrorResponse, "description": "Доменная ошибка запроса"},
+        400: {
+            "model": ErrorResponse,
+            "description": "Некорректные входные данные",
+        },
+        "4XX": {
+            "model": ErrorResponse,
+            "description": "Доменная ошибка запроса",
+        },
     },
 )
 router_v1.include_router(auth_router)

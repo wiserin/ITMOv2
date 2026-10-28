@@ -5,18 +5,11 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.application.usecases.find_accounts import FindAccountsUseCase
-from app.domain.repositories.user import UserRepository
-from app.infrastructure.database.repositories.user import (
-    UnconfiguredUserRepositoryAdapter,
-)
-
-
-def get_user_repository() -> UserRepository:
-    return UnconfiguredUserRepositoryAdapter()
+from app.presentation.api.di.repositories.user import UserRepositoryDI
 
 
 def get_find_accounts_usecase(
-        user_repository: Annotated[UserRepository, Depends(get_user_repository)]) -> FindAccountsUseCase:
+        user_repository: UserRepositoryDI) -> FindAccountsUseCase:
     return FindAccountsUseCase(user_repository=user_repository)
 
 

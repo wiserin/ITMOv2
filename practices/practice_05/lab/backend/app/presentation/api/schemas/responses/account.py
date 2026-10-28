@@ -7,7 +7,9 @@ from pydantic import BaseModel, ConfigDict
 
 from app.application.dto.find_accounts import FindAccountsResultDTO
 from app.application.dto.user import UserDTO
-from app.presentation.api.schemas.enums.user_role import UserRoleResponse
+from app.presentation.api.schemas.enums.user_role import (
+    UserRoleResponse,
+)
 
 
 class AccountResponse(BaseModel):
@@ -23,8 +25,11 @@ class AccountResponse(BaseModel):
     @classmethod
     def from_dto(cls, dto: UserDTO) -> Self:
         return cls(
-            id=dto.id, email=dto.email, username=dto.username,
-            display_name=dto.display_name, role=UserRoleResponse.from_domain(dto.role),
+            id=dto.id,
+            email=dto.email,
+            username=dto.username,
+            display_name=dto.display_name,
+            role=UserRoleResponse.from_domain(dto.role),
             is_active=dto.is_active,
         )
 
@@ -36,4 +41,7 @@ class FindAccountsResponse(BaseModel):
 
     @classmethod
     def from_dto(cls, dto: FindAccountsResultDTO) -> Self:
-        return cls(accounts=[AccountResponse.from_dto(account) for account in dto.accounts])
+        return cls(accounts=[
+            AccountResponse.from_dto(account)
+            for account in dto.accounts
+        ])

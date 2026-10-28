@@ -10,7 +10,9 @@ from app.domain.exceptions.entities import (
     DataFormatException,
     ServiceUnavailableException,
 )
-from app.infrastructure.database.errors import translate_database_error
+from app.infrastructure.database.errors import (
+    translate_database_error,
+)
 
 
 class DriverError(Exception):
@@ -32,16 +34,23 @@ def test_database_errors_become_generic_domain_errors(
         driver_type: type[DBAPIError],
         sqlstate: str,
         expected: type[BaseDomainException]) -> None:
-    error = driver_type("private SQL statement", {"password": "private-password"}, DriverError(sqlstate))
+    error = driver_type(
+        "private SQL statement",
+        {"password": "private-password"},
+        DriverError(sqlstate),
+    )
     domain_error = translate_database_error(error)
     assert isinstance(domain_error, expected)
-    assert domain_error.details == {"storage": "postgresql", "sqlstate": sqlstate}
+    assert domain_error.details == {
+        "storage": "postgresql", "sqlstate": sqlstate,
+    }
     assert "private" not in domain_error.message
     assert "private" not in str(domain_error.details)
 
 
 @pytest.mark.parametrize("sqlstate", ["40001", "40P01"])
-def test_retryable_database_errors_use_details_not_specialized_names(sqlstate: str) -> None:
+def test_retryable_database_errors_use_details(
+        sqlstate: str) -> None:
     error = DBAPIError(None, None, DriverError(sqlstate))
     domain_error = translate_database_error(error)
     assert isinstance(domain_error, ServiceUnavailableException)

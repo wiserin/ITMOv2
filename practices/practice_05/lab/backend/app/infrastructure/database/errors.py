@@ -11,7 +11,12 @@ from app.domain.exceptions.entities import (
 
 def extract_sqlstate(exc: DBAPIError) -> str:
     orig = exc.orig
-    for source in (orig, getattr(orig, "driver_exception", None), getattr(orig, "__cause__", None)):
+    sources = (
+        orig,
+        getattr(orig, "driver_exception", None),
+        getattr(orig, "__cause__", None),
+    )
+    for source in sources:
         sqlstate = getattr(source, "sqlstate", None)
         if sqlstate:
             return str(sqlstate)
@@ -20,7 +25,9 @@ def extract_sqlstate(exc: DBAPIError) -> str:
 
 def translate_database_error(exc: DBAPIError) -> BaseDomainException:
     sqlstate = extract_sqlstate(exc)
-    details: dict[str, object] = {"storage": "postgresql", "sqlstate": sqlstate}
+    details: dict[str, object] = {
+        "storage": "postgresql", "sqlstate": sqlstate,
+    }
     if sqlstate == "23505":
         return AlreadyExistsException(details=details)
     if sqlstate in {"23502", "23514", "22001"}:

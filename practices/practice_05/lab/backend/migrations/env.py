@@ -26,7 +26,9 @@ if config.config_file_name is not None:
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=postgres_url, target_metadata=Base.metadata, literal_binds=True,
+        url=postgres_url,
+        target_metadata=Base.metadata,
+        literal_binds=True,
         compare_server_default=True,
     )
     with context.begin_transaction():
@@ -34,7 +36,9 @@ def run_migrations_offline() -> None:
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(postgres_url, poolclass=pool.NullPool)
+    engine = create_async_engine(
+        postgres_url, poolclass=pool.NullPool,
+    )
     try:
         async with engine.connect() as connection:
             await connection.run_sync(do_run_migrations)

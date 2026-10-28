@@ -9,6 +9,8 @@ class BaseDomainException(Exception):
             message: str | None = None,
             *,
             details: dict[str, object] | None = None) -> None:
-        self.message = self.default_message if message is None else message
+        self.message = (
+            self.default_message if message is None else message
+        )
         self.details = dict(details) if details is not None else {}
         super().__init__(self.message)

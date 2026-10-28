@@ -4,7 +4,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, func, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import TEXT, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -29,15 +36,23 @@ class CredentialORM(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True,
+    )
     user_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE", onupdate="NO ACTION"),
+        ForeignKey(
+            "users.id", ondelete="CASCADE", onupdate="NO ACTION",
+        ),
     )
     password_hash: Mapped[str] = mapped_column(TEXT)
-    is_current: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    is_current: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("true"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
 
-    user: Mapped[UserORM] = relationship(back_populates="credentials")
+    user: Mapped[UserORM] = relationship(
+        back_populates="credentials", lazy="raise",
+    )

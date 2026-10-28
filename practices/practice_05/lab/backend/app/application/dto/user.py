@@ -20,6 +20,10 @@ class UserDTO:
     @classmethod
     def from_entity(cls, entity: UserEntity) -> Self:
         return cls(
-            id=entity.id, email=entity.email, username=entity.username,
-            role=entity.role, is_active=entity.is_active, display_name=entity.display_name,
+            id=entity.id,
+            email=entity.email,
+            username=entity.username,
+            role=entity.role,
+            is_active=entity.is_active,
+            display_name=entity.display_name,
         )

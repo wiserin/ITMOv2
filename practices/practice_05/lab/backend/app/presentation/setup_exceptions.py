@@ -17,7 +17,9 @@ from app.domain.exceptions.entities import (
     ServiceUnavailableException,
 )
 
-DOMAIN_ERROR_MAPPING: dict[type[BaseDomainException], tuple[int, str]] = {
+type ErrorMapping = dict[type[BaseDomainException], tuple[int, str]]
+
+DOMAIN_ERROR_MAPPING: ErrorMapping = {
     AlreadyExistsException: (409, "conflict"),
     ConflictException: (409, "conflict"),
     DataFormatException: (400, "bad_request"),
@@ -34,14 +36,21 @@ def setup_exception_handlers(app: FastAPI) -> None:
     async def domain_exception_handler(
             request: Request,
             exc: BaseDomainException) -> JSONResponse:
+        mappings = DOMAIN_ERROR_MAPPING.items()
         status_code, error = next(
-            (response for exception, response in DOMAIN_ERROR_MAPPING.items() if isinstance(exc, exception)),
+            (
+                response
+                for exception, response in mappings
+                if isinstance(exc, exception)
+            ),
             (500, "internal_error"),
         )
         return JSONResponse(
             status_code=status_code,
             content=jsonable_encoder({
-                "error": error, "message": exc.message, "details": exc.details,
+                "error": error,
+                "message": exc.message,
+                "details": exc.details,
             }),
         )
 
@@ -50,13 +59,18 @@ def setup_exception_handlers(app: FastAPI) -> None:
             request: Request,
             exc: RequestValidationError) -> JSONResponse:
         errors = [
-            {"type": error["type"], "loc": error["loc"], "msg": error["msg"]}
+            {
+                "type": error["type"],
+                "loc": error["loc"],
+                "msg": error["msg"],
+            }
             for error in exc.errors()
         ]
         return JSONResponse(
             status_code=400,
             content=jsonable_encoder({
-                "error": "bad_request", "message": "Ошибка валидации данных.",
+                "error": "bad_request",
+                "message": "Ошибка валидации данных.",
                 "details": {"errors": errors},
             }),
         )

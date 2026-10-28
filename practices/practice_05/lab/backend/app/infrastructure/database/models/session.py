@@ -19,17 +19,20 @@ class SessionORM(Base):
     __tablename__ = "sessions"
     __table_args__ = (
         CheckConstraint(
-            "char_length(btrim(secret)) > 0", name="ck_sessions_secret_not_blank",
+            "char_length(btrim(secret)) > 0",
+            name="ck_sessions_secret_not_blank",
         ),
         CheckConstraint(
             "char_length(btrim(secret_hash)) > 0",
             name="ck_sessions_secret_hash_not_blank",
         ),
         CheckConstraint(
-            "last_used_at >= created_at", name="ck_sessions_last_used_at",
+            "last_used_at >= created_at",
+            name="ck_sessions_last_used_at",
         ),
         CheckConstraint(
-            "expires_at > last_used_at", name="ck_sessions_expires_at",
+            "expires_at > last_used_at",
+            name="ck_sessions_expires_at",
         ),
         CheckConstraint(
             "closed_at IS NULL OR closed_at >= last_used_at",
@@ -42,10 +45,14 @@ class SessionORM(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True,
+    )
     user_id: Mapped[UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE", onupdate="NO ACTION"),
+        ForeignKey(
+            "users.id", ondelete="CASCADE", onupdate="NO ACTION",
+        ),
     )
     secret: Mapped[str] = mapped_column(TEXT)
     secret_hash: Mapped[str] = mapped_column(TEXT)
@@ -55,7 +62,13 @@ class SessionORM(Base):
     last_used_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),
     )
-    closed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
-    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True),
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+    )
 
-    user: Mapped[UserORM] = relationship(back_populates="sessions")
+    user: Mapped[UserORM] = relationship(
+        back_populates="sessions", lazy="raise",
+    )

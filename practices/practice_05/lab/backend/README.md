@@ -1,5 +1,24 @@
 # AnimeMap API — backend
 
+## Запуск всего окружения
+
+Из `backend/` или родительского `lab/`:
+
+```bash
+docker compose up --build --wait
+docker compose ps --all
+```
+
+Запускаются PostgreSQL, Redis, миграции и API. Backend ждёт успешного завершения Alembic; адрес — `http://localhost:8080`, Swagger — `/docs`, healthcheck — `/ping`. При необходимости порт меняется через `BACKEND_PORT`.
+
+Собственные настройки задаются в `backend/.env` по образцу `.env.example`; без него работают dev-значения Compose. Подробности сети, volume, startup/shutdown и остановки — в [docs/deployment.md](../docs/deployment.md).
+
+Лимит Python-строки — 70 символов, включая отступ. Проверка:
+
+```bash
+uvx ruff check app tests migrations run.py
+```
+
 ## Миграции PostgreSQL
 
 Требуются Python 3.14+, `uv` и отдельная PostgreSQL для разработки.
@@ -44,7 +63,15 @@ docker run --rm animemap-api-tests
 - `GET /v1/account/me` — текущий аккаунт из auth DI, доступен любому активному аутентифицированному пользователю.
 - `GET /v1/account/find/{username_prefix}?limit=20&offset=0` — страница совпадений по префиксу username, доступен moderator/admin. Роль проверяется до поиска, обычный user получает `403`. Limit ограничен диапазоном 1–100, offset — 0–10 000; оба поля принимает общий `PaginationRequest` через `Annotated[PaginationRequest, Query()]`.
 - Роли возвращаются строками; JWT, хэши и сроки сессий в ответ не попадают.
-- Конкретный `FindAccountsUseCase` получает доменный `UserRepository` извне через конструктор и DI. Репозиторий возвращает `UserEntity`; UseCase преобразует сущности в application DTO. Реальный SQL-адаптер ещё не реализован; его временная замена выбрасывает общий `NotImplementedException` (`501` после HTTP-маппинга). API-тесты подменяют репозиторий и сохраняют реальную проверку прав.
+- Конкретный `FindAccountsUseCase` получает доменный `UserRepository` извне через конструктор и DI. Реальный SQLAlchemy-адаптер возвращает страницу `UserEntity`; UseCase преобразует сущности в application DTO. Аутентификация пока не реализована, но поиск проверяется интеграционным тестом с PostgreSQL и подменой только auth.
+
+## Репозитории и DI
+
+Реализованы `SQLAlchemyUserRepositoryAdapter`, `SQLAlchemyCredentialRepositoryAdapter`, `SQLAlchemySessionRepositoryAdapter`. Каждый получает AsyncSession извне, имеет `_to_orm`/`_from_orm`, выполняет явные async ORM-запросы и flush после записи. Commit/rollback выполняет SessionController при выходе из контекста; в адаптерах commit отсутствует.
+
+DI разделена на `clients`, `repositories`, `entities`, `ports`; отдельные фабрики UseCase объединяют типизированные зависимости. Репозитории одного запроса используют общую сессию с завершением транзакции до отправки HTTP-ответа.
+
+Контракты CRUD, блокировки и транзакции — в [docs/repositories.md](../docs/repositories.md).
 
 ## Ошибки и границы application
 
@@ -91,7 +118,7 @@ TEST_DATABASE_URL=postgresql+asyncpg://user:password@127.0.0.1:5432/animemap_tes
   uv run --group tests pytest tests/integration/database
 ```
 
-Без `TEST_DATABASE_URL` интеграционные тесты пропускаются. Проверяются bootstrap-хэш, связи, каскадное удаление, обязательность username, ограничения сессий и единственность текущего пароля при сохранении истории.
+Без `TEST_DATABASE_URL` интеграционные тесты пропускаются. Проверяются bootstrap, схема, CRUD трёх репозиториев, буквальный поиск с пагинацией, история паролей, каскадное удаление, маппинг доменных ошибок, отсутствие commit в адаптерах и commit/rollback фабрики. Отдельно проверяется HTTP-поиск через реальные DI/UseCase/ORM/PostgreSQL с подменой аутентификации.
 
 ### Запуск интеграционных тестов в Docker
 
