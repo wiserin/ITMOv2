@@ -30,10 +30,6 @@ def test_expiration_requires_application_value() -> None:
 
 @pytest.mark.parametrize("name, expression", [
     (
-        "ck_sessions_secret_not_blank",
-        "char_length(btrim(secret)) > 0",
-    ),
-    (
         "ck_sessions_secret_hash_not_blank",
         "char_length(btrim(secret_hash)) > 0",
     ),
@@ -53,14 +49,13 @@ def test_session_constraints_are_emitted_in_postgresql_ddl(
     assert f"CONSTRAINT {name} CHECK ({expression})" in ddl
 
 
-def test_secrets_are_required_and_excluded_from_repr() -> None:
+def test_only_secret_hash_is_stored_and_excluded_from_repr() -> None:
     table = SessionORM.__table__
-    assert not table.c.secret.nullable
+    assert "secret" not in table.c
     assert not table.c.secret_hash.nullable
     session = SessionORM(
-        id=uuid4(), secret="private-secret",
+        id=uuid4(),
         secret_hash="private-hash",
     )
     for representation in (repr(session), str(session)):
-        assert "private-secret" not in representation
         assert "private-hash" not in representation

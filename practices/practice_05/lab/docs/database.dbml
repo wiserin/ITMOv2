@@ -47,7 +47,6 @@ Ref: credentials.user_id > users.id [delete: cascade, update: no action]
 Table sessions {
   id uuid [pk, not null]
   user_id uuid [not null]
-  secret text [not null]
   secret_hash text [not null]
   created_at timestamptz [not null, default: `now()`]
   last_used_at timestamptz [not null, default: `now()`]
@@ -63,7 +62,6 @@ Table sessions {
   }
 
   checks {
-    `char_length(btrim(secret)) > 0` [name: 'ck_sessions_secret_not_blank']
     `char_length(btrim(secret_hash)) > 0` [name: 'ck_sessions_secret_hash_not_blank']
     `last_used_at >= created_at` [name: 'ck_sessions_last_used_at']
     `expires_at > last_used_at` [name: 'ck_sessions_expires_at']

@@ -8,7 +8,7 @@ from uuid import uuid4
 
 import pytest
 from argon2 import PasswordHasher
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import selectinload
@@ -73,10 +73,24 @@ def test_bootstrap_root() -> None:
         assert credential.is_current
         assert credential.user is root
         assert credential.password_hash.startswith("$argon2id$")
-        assert PasswordHasher().verify(
+        assert await asyncio.to_thread(
+            PasswordHasher().verify,
             credential.password_hash, "root",
         )
         assert credential.password_hash not in repr(credential)
+
+    run_check(check)
+
+
+def test_migrated_sessions_store_only_secret_hash() -> None:
+    async def check(session: AsyncSession) -> None:
+        columns = set(await session.scalars(text(
+            "SELECT column_name FROM information_schema.columns "
+            "WHERE table_schema = current_schema() "
+            "AND table_name = 'sessions'"
+        )))
+        assert "secret" not in columns
+        assert "secret_hash" in columns
 
     run_check(check)
 
@@ -130,7 +144,7 @@ def test_relationships_and_database_delete_cascade() -> None:
             id=uuid4(), password_hash="test-hash",
         ))
         user.sessions.append(SessionORM(
-            id=uuid4(), secret="session-secret",
+            id=uuid4(),
             secret_hash="session-secret-hash",
             created_at=now, last_used_at=now,
             expires_at=now + timedelta(minutes=30),
@@ -188,7 +202,7 @@ def test_session_timestamp_constraints(invalid_field: str) -> None:
         )).one()
         now = datetime.now(UTC)
         values = {
-            "id": uuid4(), "user_id": root_id, "secret": "secret",
+            "id": uuid4(), "user_id": root_id,
             "secret_hash": "hash", "created_at": now,
             "last_used_at": now,
             "expires_at": now + timedelta(minutes=30),

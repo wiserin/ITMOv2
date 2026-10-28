@@ -29,7 +29,7 @@ def test_recheck_after_verify_prevents_session_revival(
             created_at=now, updated_at=now,
         )
         session = SessionEntity(
-            user_id=user.id, secret="secret",
+            user_id=user.id,
             secret_hash=await secret_manager.hash_secret("secret"),
             created_at=now, last_used_at=now,
             expires_at=now + timedelta(minutes=30),
@@ -62,23 +62,24 @@ def test_recheck_after_verify_prevents_session_revival(
     asyncio.run(scenario())
 
 
-def test_secret_verify_runs_outside_event_loop(
+@pytest.mark.parametrize("method", ["hash", "verify"])
+def test_argon2_runs_outside_event_loop(
         secret_manager: SecretManagerPort,
-        monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch,
+        method: str) -> None:
     import threading
 
     main_thread = threading.get_ident()
     calls: list[int] = []
-    original = secret_manager._hasher.verify
+    original = getattr(secret_manager._hasher, method)
 
-    def verify(
+    def operation(
             self: PasswordHasher,
-            hashed: str,
-            raw: str) -> bool:
+            *args: str) -> str | bool:
         calls.append(threading.get_ident())
-        return original(hashed, raw)
+        return original(*args)
 
-    monkeypatch.setattr(PasswordHasher, "verify", verify)
+    monkeypatch.setattr(PasswordHasher, method, operation)
 
     async def scenario() -> None:
         hashed = await secret_manager.hash_secret("password")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
 
@@ -36,7 +37,9 @@ class AuthUseCase(BaseUseCase):
         self._commit = commit
 
     async def authenticate(self, token: str) -> UserDTO:
-        decoded = self._jwt_provider.decode(token)
+        decoded = await asyncio.to_thread(
+            self._jwt_provider.decode, token,
+        )
         try:
             session = await self._session_repository.get_by_id(
                 decoded.session_id,

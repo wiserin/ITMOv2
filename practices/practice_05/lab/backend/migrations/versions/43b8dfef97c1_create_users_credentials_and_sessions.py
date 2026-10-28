@@ -105,7 +105,6 @@ def upgrade() -> None:
         'sessions',
         sa.Column('id', sa.UUID(), nullable=False),
         sa.Column('user_id', sa.UUID(), nullable=False),
-        sa.Column('secret', sa.TEXT(), nullable=False),
         sa.Column('secret_hash', sa.TEXT(), nullable=False),
         sa.Column(
             'created_at', postgresql.TIMESTAMP(timezone=True),
@@ -122,10 +121,6 @@ def upgrade() -> None:
         sa.Column(
             'expires_at', postgresql.TIMESTAMP(timezone=True),
             nullable=False,
-        ),
-        sa.CheckConstraint(
-            'char_length(btrim(secret)) > 0',
-            name='ck_sessions_secret_not_blank',
         ),
         sa.CheckConstraint(
             'char_length(btrim(secret_hash)) > 0',

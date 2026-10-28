@@ -8,6 +8,18 @@
 - `infrastructure/security/secret.py`: `Argon2SecretManagerPortAdapter`, **Argon2id**, отдельная соль для каждого хэша. Хэширование и verify выполняются через `asyncio.to_thread`, вне event loop.
 - DI адаптеров — `presentation/api/di/ports/`. Экземпляры кэшируются; ключ подписи проверяется при старте приложения. UseCase получают интерфейсы, а не создают адаптеры.
 
+Синхронные `encode`, `decode` и `generate_random_secret` вызываются
+из async UseCase через `await asyncio.to_thread(...)`. Загрузка и
+проверка PEM-ключа при старте также вынесена в `asyncio.to_thread`.
+PostgreSQL (`asyncpg` / AsyncSession) и Redis (`redis.asyncio`)
+выполняют I/O асинхронно и не передаются в поток.
+
+В SessionEntity, ORM и БД хранится только `secret_hash`.
+Открытый секрет нужен для создания JWT при входе и для проверки
+предъявленного JWT; репозиторий его не принимает и не возвращает.
+Единственная стартовая миграция `43b8dfef97c1` сразу создаёт
+`sessions` без открытого секрета, только с `secret_hash`.
+
 ## JWT
 
 Payload содержит только `jti` (UUIDv4 сессии), `secret` (непустая строка) и `iat` (целочисленный NumericDate). Нет `exp`, роли, ID пользователя и access/refresh-пары. Неожиданные поля отклоняются. Подпись проверяется только EdDSA с публичным ключом, полученным из настроенного приватного ключа. Недействительные подпись, структура и значения дают `AuthenticationException` → `401`.

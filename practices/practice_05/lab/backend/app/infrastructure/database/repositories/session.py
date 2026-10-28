@@ -70,7 +70,7 @@ class SQLAlchemySessionRepositoryAdapter(SQLAlchemyRepositoryAdapter):
             orm = await self._get_orm(incoming.id, for_update=True)
             self._assert_immutable(
                 orm, incoming,
-                ("user_id", "secret", "secret_hash", "created_at"),
+                ("user_id", "secret_hash", "created_at"),
                 "session",
             )
             orm.last_used_at = incoming.last_used_at
@@ -93,7 +93,6 @@ class SQLAlchemySessionRepositoryAdapter(SQLAlchemyRepositoryAdapter):
         return SessionORM(
             id=entity.id,
             user_id=entity.user_id,
-            secret=entity.secret,
             secret_hash=entity.secret_hash,
             created_at=entity.created_at,
             last_used_at=entity.last_used_at,
@@ -106,7 +105,6 @@ class SQLAlchemySessionRepositoryAdapter(SQLAlchemyRepositoryAdapter):
         return SessionEntity(
             id=orm.id,
             user_id=orm.user_id,
-            secret=orm.secret,
             secret_hash=orm.secret_hash,
             created_at=orm.created_at,
             last_used_at=orm.last_used_at,

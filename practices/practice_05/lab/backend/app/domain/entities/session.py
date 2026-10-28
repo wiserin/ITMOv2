@@ -14,7 +14,6 @@ from app.domain.exceptions.entities import (
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SessionEntity:
     user_id: UUID
-    secret: str = field(repr=False)
     secret_hash: str = field(repr=False)
     created_at: datetime
     last_used_at: datetime

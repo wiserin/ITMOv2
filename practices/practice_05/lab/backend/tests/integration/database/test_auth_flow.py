@@ -1,6 +1,7 @@
 import asyncio
 import os
 from collections.abc import AsyncIterator, Iterator
+from dataclasses import replace
 from datetime import datetime
 from uuid import uuid4
 
@@ -76,7 +77,8 @@ def auth_client(
 
 def test_full_auth_flow_and_independent_renewal(
         auth_client: TestClient,
-        jwt_provider: JwtProviderPort) -> None:
+        jwt_provider: JwtProviderPort,
+        secret_manager: SecretManagerPort) -> None:
     email = f"{uuid4()}@example.com"
     payload = {
         "email": email, "username": " auth-fan ",
@@ -102,7 +104,7 @@ def test_full_auth_flow_and_independent_renewal(
             assert user.username == "auth-fan"
             assert credential.password_hash.startswith("$argon2id$")
             assert active.secret_hash.startswith("$argon2id$")
-            return active.secret, active.expires_at
+            return active.secret_hash, active.expires_at
 
     async def cleanup() -> None:
         async with factory.begin() as session:
@@ -132,8 +134,12 @@ def test_full_auth_flow_and_independent_renewal(
         assert response.status_code == 200
         assert response.json() == {}
         token = auth_client.cookies["session_token"]
-        secret, expires_before = asyncio.run(inspect())
-        assert jwt_provider.decode(token).secret == secret
+        secret_hash, expires_before = asyncio.run(inspect())
+        decoded = jwt_provider.decode(token)
+        assert decoded.secret != secret_hash
+        asyncio.run(secret_manager.verify_secret(
+            decoded.secret, secret_hash,
+        ))
         response = auth_client.get("/v1/account/me")
         assert response.status_code == 200
         assert response.json()["role"] == "user"
@@ -145,6 +151,13 @@ def test_full_auth_flow_and_independent_renewal(
         _, expires_after = asyncio.run(inspect())
         assert expires_after > expires_before
         assert auth_client.cookies["session_token"] == token
+        wrong_secret_token = jwt_provider.encode(replace(
+            decoded, secret="wrong-session-secret",
+        ))
+        auth_client.cookies.set("session_token", wrong_secret_token)
+        assert auth_client.get("/v1/account/me").status_code == 401
+        _, expires_rejected = asyncio.run(inspect())
+        assert expires_rejected == expires_after
         auth_client.cookies.set("session_token", "broken")
         assert auth_client.get("/v1/account/me").status_code == 401
     finally:

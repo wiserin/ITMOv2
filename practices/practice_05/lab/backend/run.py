@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from logging import getLogger
@@ -17,7 +18,7 @@ logger = getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
-        get_jwt_provider()
+        await asyncio.to_thread(get_jwt_provider)
         await database_factory.check_connection()
         await redis_factory.check_connection()
         logger.info("AnimeMap API started")

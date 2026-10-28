@@ -79,7 +79,7 @@ def new_user(*, username: str = "repository-user") -> UserEntity:
 def new_session(user_id: UUID) -> SessionEntity:
     now = datetime.now(UTC)
     return SessionEntity(
-        user_id=user_id, secret="private-secret",
+        user_id=user_id,
         secret_hash="private-secret-hash",
         created_at=now, last_used_at=now,
         expires_at=now + timedelta(minutes=20),
@@ -236,7 +236,7 @@ def test_credential_rotation_and_current_uniqueness() -> None:
     run_check(check)
 
 
-def test_session_crud_and_secret_roundtrip() -> None:
+def test_session_crud_and_hash_roundtrip() -> None:
     async def check(session: AsyncSession) -> None:
         users = SQLAlchemyUserRepositoryAdapter(session=session)
         repository = SQLAlchemySessionRepositoryAdapter(
@@ -263,10 +263,10 @@ def test_session_crud_and_secret_roundtrip() -> None:
         ) == (closed,)
         with pytest.raises(ConflictException) as error:
             await repository.update(replace(
-                closed, secret="replacement-secret",
+                closed, secret_hash="replacement-hash",
             ))
-        assert error.value.details["fields"] == ["secret"]
-        assert "private-secret" not in str(error.value.details)
+        assert error.value.details["fields"] == ["secret_hash"]
+        assert "private-secret-hash" not in str(error.value.details)
         assert await repository.delete(closed) == closed
         with pytest.raises(NotFoundException):
             await repository.get_by_id(entity.id)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from app.application.dto.login import LoginDTO, LoginResultDTO
@@ -55,7 +56,9 @@ class LoginUseCase(BaseUseCase):
             await self._secret_manager.verify_secret(
                 data.password, credential.password_hash,
             )
-            secret = self._secret_manager.generate_random_secret()
+            secret = await asyncio.to_thread(
+                self._secret_manager.generate_random_secret,
+            )
             secret_hash = await self._secret_manager.hash_secret(
                 secret,
             )
@@ -77,14 +80,16 @@ class LoginUseCase(BaseUseCase):
         now = datetime.now(UTC)
         session = SessionEntity(
             user_id=user.id,
-            secret=secret,
             secret_hash=secret_hash,
             created_at=now,
             last_used_at=now,
             expires_at=now + self._idle_timeout,
         )
         await self._session_repository.create(session)
-        token = self._jwt_provider.encode(SessionTokenEntity(
-            session_id=session.id, secret=secret, issued_at=now,
-        ))
+        token = await asyncio.to_thread(
+            self._jwt_provider.encode,
+            SessionTokenEntity(
+                session_id=session.id, secret=secret, issued_at=now,
+            ),
+        )
         return LoginResultDTO(token=token)

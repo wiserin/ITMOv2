@@ -19,10 +19,6 @@ class SessionORM(Base):
     __tablename__ = "sessions"
     __table_args__ = (
         CheckConstraint(
-            "char_length(btrim(secret)) > 0",
-            name="ck_sessions_secret_not_blank",
-        ),
-        CheckConstraint(
             "char_length(btrim(secret_hash)) > 0",
             name="ck_sessions_secret_hash_not_blank",
         ),
@@ -54,7 +50,6 @@ class SessionORM(Base):
             "users.id", ondelete="CASCADE", onupdate="NO ACTION",
         ),
     )
-    secret: Mapped[str] = mapped_column(TEXT)
     secret_hash: Mapped[str] = mapped_column(TEXT)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(),

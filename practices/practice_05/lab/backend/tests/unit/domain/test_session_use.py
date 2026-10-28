@@ -15,13 +15,13 @@ from app.domain.exceptions.entities import (
 def session() -> SessionEntity:
     now = datetime(2026, 10, 29, tzinfo=UTC)
     return SessionEntity(
-        user_id=uuid4(), secret="secret", secret_hash="hash",
+        user_id=uuid4(), secret_hash="hash",
         created_at=now, last_used_at=now,
         expires_at=now + timedelta(minutes=30),
     )
 
 
-def test_use_returns_new_session_preserving_identity_and_secrets(
+def test_use_returns_new_session_preserving_identity_and_hash(
         session: SessionEntity) -> None:
     now = session.created_at + timedelta(minutes=5)
     used = session.use(idle_timeout=timedelta(minutes=20), now=now)
