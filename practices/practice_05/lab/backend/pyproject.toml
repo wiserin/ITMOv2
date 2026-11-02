@@ -1,0 +1,44 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic-settings>=2.16.2",
+]
+
+[dependency-groups]
+migrations = [
+    "alembic>=1.20.1",
+    "asyncpg>=0.31.0",
+    "sqlalchemy[asyncio]>=2.1.6",
+]
+service = [
+    "alembic>=1.20.1",
+    "argon2-cffi>=25.1.0",
+    "asyncpg>=0.31.0",
+    "fastapi>=0.162.0",
+    "pydantic[email]>=2.14.1",
+    "pyjwt[crypto]>=2.10.1",
+    "redis>=8.1.0",
+    "sqlalchemy[asyncio]>=2.1.6",
+    "uvicorn>=0.38.0",
+]
+tests = [
+    { include-group = "service" },
+    { include-group = "migrations" },
+    "httpx>=0.28.1",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests/integration/database"]
+addopts = "--import-mode=importlib"
+
+[tool.ruff]
+line-length = 70
+
+[tool.ruff.lint]
+extend-select = ["E501"]
