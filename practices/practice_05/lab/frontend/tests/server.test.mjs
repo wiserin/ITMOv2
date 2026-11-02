@@ -123,3 +123,80 @@ test('unavailable API gives 502', async t => {
   const response = await fetch(frontend.origin + '/v1/account/me');
   assert.equal(response.status, 502);
 });
+
+test('Logout public boundary preserves strict contract', async t => {
+  const calls = [];
+  let status = 204;
+  const upstream = await listen(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk;
+    calls.push({ headers: req.headers, body, url: req.url });
+    const headers = { 'Cache-Control': 'no-store', Allow: 'POST' };
+    if ([204, 401].includes(status)) {
+      headers['Set-Cookie'] = 'session_token=; Max-Age=0; Path=/; ' +
+        'Secure; HttpOnly; SameSite=Lax';
+    }
+    res.writeHead(status, headers);
+    res.end(status === 204 ? undefined : '{}');
+  });
+  const frontend = await listen(createApp({
+    apiOrigin: upstream.origin, publicOrigin: 'https://animemap.test',
+  }));
+  t.after(async () => { await frontend.close(); await upstream.close(); });
+  const raw = (method, path = '/v1/auth/logout', headers = {}, body = '') =>
+    new Promise((resolve, reject) => {
+      const req = http.request(frontend.origin + path, { method, headers }, res => {
+        let text = '';
+        res.on('data', chunk => { text += chunk; });
+        res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, text }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+  const csrf = { 'X-AnimeMap-Logout': '1' };
+  for (const method of ['GET', 'HEAD', 'OPTIONS', 'PUT', 'DELETE']) {
+    const response = await raw(method);
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.allow, 'POST');
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.equal(response.headers['set-cookie'], undefined);
+    assert.equal(response.headers['access-control-allow-credentials'], undefined);
+    if (method === 'HEAD') assert.equal(response.text, '');
+    else assert.equal(JSON.parse(response.text).error, 'method_not_allowed');
+  }
+  for (const origin of ['null', 'broken', 'http://animemap.test',
+    'https://other.test', 'https://animemap.test:444']) {
+    const response = await raw('POST', undefined, { ...csrf, Origin: origin });
+    assert.equal(response.status, 403);
+    assert.equal(JSON.parse(response.text).details.reason, 'origin_check_failed');
+  }
+  for (const header of [undefined, '0', ['1', '1'], ['1', '0']]) {
+    const headers = { 'Content-Length': '2', Cookie: 'bad=credential' };
+    if (header !== undefined) headers['X-AnimeMap-Logout'] = header;
+    const response = await raw('POST', '/v1/auth/logout?x=', headers, '{}');
+    assert.equal(response.status, 403);
+    assert.equal(JSON.parse(response.text).details.reason, 'csrf_check_failed');
+  }
+  for (const body of ['{}', 'null', ' ', '{bad', 'x'.repeat(17000)]) {
+    const response = await raw('POST', undefined,
+      { ...csrf, 'Content-Length': String(Buffer.byteLength(body)) }, body);
+    assert.equal(response.status, 400);
+    assert.equal(response.headers['set-cookie'], undefined);
+  }
+  assert.equal((await raw('POST', '/v1/auth/logout?x=', csrf)).status, 400);
+  assert.equal(calls.length, 0);
+  for (const code of [204, 401, 400, 503, 405]) {
+    status = code;
+    const response = await raw('POST', undefined, { ...csrf,
+      Origin: 'https://animemap.test:443', Cookie: 'session_token=original',
+      'Content-Type': 'application/json', 'X-Forwarded-Proto': 'http',
+    });
+    assert.equal(response.status, code);
+    assert.equal(response.headers.allow, 'POST');
+    assert.equal(response.headers['cache-control'], 'no-store');
+    assert.equal(calls.at(-1).headers.cookie, 'session_token=original');
+    assert.equal(calls.at(-1).headers['x-animemap-logout'], '1');
+    assert.equal(calls.at(-1).body, '');
+    if (code === 204) assert.equal(response.text, '');
+  }
+});

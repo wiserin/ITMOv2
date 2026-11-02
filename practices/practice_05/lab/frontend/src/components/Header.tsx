@@ -3,9 +3,10 @@ import { canModerate, type AccountResponse } from '../api/client';
 import { Avatar, roleNames } from './AccountDetails';
 import { Brand } from './Brand';
 
-export function Header({ account }: { account: AccountResponse }) {
+export function Header({ account, busy, onLogout }: {
+  account: AccountResponse; busy: boolean; onLogout: () => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -24,7 +25,7 @@ export function Header({ account }: { account: AccountResponse }) {
     <span className="header-caption">Из аниме — в реальность</span>
     <div className="user-menu" ref={menu}
       onPointerEnter={event => {
-        if (event.pointerType === 'mouse') setOpen(true);
+        if (!busy && event.pointerType === 'mouse') setOpen(true);
       }}
       onPointerLeave={event => {
         if (event.pointerType === 'mouse') setOpen(false);
@@ -43,10 +44,11 @@ export function Header({ account }: { account: AccountResponse }) {
       <button className="avatar-button" ref={trigger}
         aria-label="Меню аккаунта" aria-expanded={open}
         aria-controls="account-menu"
-        onClick={() => setOpen(value => !value)}>
+        aria-disabled={busy} aria-busy={busy}
+        onClick={() => { if (!busy) setOpen(value => !value); }}>
         <Avatar account={account} />
       </button>
-      {open && <div className="dropdown-wrap">
+      {open && !busy && <div className="dropdown-wrap">
         <nav className="dropdown" id="account-menu"
           aria-label="Аккаунт">
           <div className="menu-identity">
@@ -61,18 +63,13 @@ export function Header({ account }: { account: AccountResponse }) {
               <span aria-hidden="true">⊞</span> Admin Panel
             </a>}
           <button onClick={() => {
-            setNotice(true);
             setOpen(false);
+            trigger.current?.focus();
+            if (!busy) onLogout();
           }}><span aria-hidden="true">↗</span> Выйти
-            <small>Скоро</small>
           </button>
         </nav>
       </div>}
     </div>
-    {notice && <div className="toast" role="status">
-      Выход появится позже. Ваша сессия остаётся активной.
-      <button aria-label="Закрыть уведомление"
-        onClick={() => setNotice(false)}>×</button>
-    </div>}
   </header>;
 }

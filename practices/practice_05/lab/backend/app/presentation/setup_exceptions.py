@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
+from starlette.responses import PlainTextResponse
 
 from app.domain.exceptions.base import BaseDomainException
 from app.domain.exceptions.entities import (
@@ -16,6 +19,7 @@ from app.domain.exceptions.entities import (
     PermissionException,
     ServiceUnavailableException,
 )
+from app.presentation.logout_response import is_logout, logout_policy
 
 type ErrorMapping = dict[type[BaseDomainException], tuple[int, str]]
 
@@ -45,13 +49,19 @@ def setup_exception_handlers(app: FastAPI) -> None:
             ),
             (500, "internal_error"),
         )
-        return JSONResponse(
+        response = JSONResponse(
             status_code=status_code,
             content=jsonable_encoder({
                 "error": error,
                 "message": exc.message,
                 "details": exc.details,
             }),
+        )
+        return logout_policy(
+            request, response,
+            authentication_failure=isinstance(
+                exc, AuthenticationException,
+            ),
         )
 
     @app.exception_handler(RequestValidationError)
@@ -66,7 +76,7 @@ def setup_exception_handlers(app: FastAPI) -> None:
             }
             for error in exc.errors()
         ]
-        return JSONResponse(
+        response = JSONResponse(
             status_code=400,
             content=jsonable_encoder({
                 "error": "bad_request",
@@ -74,3 +84,33 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 "details": {"errors": errors},
             }),
         )
+        return logout_policy(request, response)
+
+    @app.exception_handler(HTTPException)
+    async def http_error(request: Request, exc: HTTPException):
+        if not is_logout(request):
+            return await http_exception_handler(request, exc)
+        headers = dict(exc.headers or {})
+        if exc.status_code == 405:
+            headers["Allow"] = "POST"
+        response = JSONResponse(
+            status_code=exc.status_code, headers=headers,
+            content={
+                "error": (
+                    "method_not_allowed" if exc.status_code == 405
+                    else "bad_request"
+                ),
+                "message": "Logout request rejected", "details": {},
+            },
+        )
+        return logout_policy(request, response)
+
+    @app.exception_handler(Exception)
+    async def unexpected_error(request: Request, exc: Exception):
+        if not is_logout(request):
+            return PlainTextResponse("Internal Server Error", 500)
+        response = JSONResponse(status_code=500, content={
+            "error": "internal_error",
+            "message": "Internal server error", "details": {},
+        })
+        return logout_policy(request, response)

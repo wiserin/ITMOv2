@@ -1,18 +1,26 @@
-import { useState, type FormEvent } from 'react';
-import { api, ApiError, type AccountResponse } from '../api/client';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { api, ApiError, type LoginRequest } from '../api/client';
 import { Brand } from '../components/Brand';
 
-export function AuthPage({ register, onLogin }: {
+export function AuthPage({ register, login, authBusy, notice, dismissNotice }: {
   register: boolean;
-  onLogin: (account: AccountResponse) => void;
+  login: (request: LoginRequest) => Promise<void>;
+  authBusy: boolean;
+  notice: 'signed-out' | 'session-invalid' | null;
+  dismissNotice: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [email, setEmail] = useState('');
+  const submitting = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { heading.current?.focus(); }, [register]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (authBusy || submitting.current) return;
+    submitting.current = true;
     const form = new FormData(event.currentTarget);
     const password = String(form.get('password') || '');
     const normalizedEmail = email.trim().toLowerCase();
@@ -32,9 +40,7 @@ export function AuthPage({ register, onLogin }: {
         setSuccess(true);
         window.location.hash = '/login';
       } else {
-        await api.login({ email: normalizedEmail, password });
-        onLogin(await api.me());
-        window.location.hash = '/';
+        await login({ email: normalizedEmail, password });
       }
     } catch (reason) {
       setError(reason instanceof ApiError && reason.status === 401
@@ -42,6 +48,7 @@ export function AuthPage({ register, onLogin }: {
         : reason instanceof Error ? reason.message : 'Ошибка запроса.');
     } finally {
       setBusy(false);
+      submitting.current = false;
     }
   }
 
@@ -77,15 +84,20 @@ export function AuthPage({ register, onLogin }: {
           </a>
         </div>
         <p className="eyebrow">Добро пожаловать в AnimeMap</p>
-        <h2>{register ? 'Начнём путешествие' : 'С возвращением'}</h2>
+        <h2 tabIndex={-1} ref={heading}>{register ? 'Начнём путешествие' : 'С возвращением'}</h2>
         <p className="muted auth-intro">{register
           ? 'Создайте аккаунт для своих будущих открытий.'
           : 'Войдите, чтобы быть ближе к любимым историям.'}</p>
         {success && !register && <p className="success" role="status">
           Аккаунт создан. Войдите с вашим email и паролем.
         </p>}
+        {notice && <div className="success" role="status">
+          <p>{notice === 'signed-out' ? 'Вы вышли из аккаунта.'
+            : 'Сессия недействительна. Войдите снова'}</p>
+          <button onClick={dismissNotice}>Закрыть уведомление</button>
+        </div>}
         <form onSubmit={submit} key={String(register)}>
-          <fieldset disabled={busy}>
+          <fieldset disabled={busy || authBusy} aria-busy={busy || authBusy}>
             {register && <>
               <label>Имя пользователя
                 <input name="username" required maxLength={100}

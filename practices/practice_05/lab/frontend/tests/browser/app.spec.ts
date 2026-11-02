@@ -19,6 +19,9 @@ async function mockApi(page: Page, role = 'user', signedIn = true) {
     if (path === '/v1/auth/login') {
       signedIn = true;
       await route.fulfill({ json: {} });
+    } else if (path === '/v1/auth/logout') {
+      signedIn = false;
+      await route.fulfill({ status: 204 });
     } else if (path === '/v1/auth/register') {
       await route.fulfill({ status: 201, json: { registered: true } });
     } else if (path === '/v1/account/me') {
@@ -105,7 +108,7 @@ test('expired session returns to login', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'С возвращением' })).toBeVisible();
 });
 
-test('mobile navigation and logout placeholder', async ({ browser }) => {
+test('mobile navigation and confirmed logout', async ({ browser }) => {
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     hasTouch: true,
@@ -115,7 +118,8 @@ test('mobile navigation and logout placeholder', async ({ browser }) => {
   await page.goto('http://127.0.0.1:3100/');
   await page.getByRole('button', { name: 'Меню аккаунта' }).tap();
   await page.getByRole('button', { name: 'Выйти' }).click();
-  await expect(page.getByRole('status')).toContainText('сессия остаётся активной');
+  await expect(page.getByRole('status')).toContainText('Вы вышли из аккаунта.');
+  await expect(page.getByRole('heading', { name: 'С возвращением' })).toBeFocused();
   expect(await page.evaluate(() =>
     document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await context.close();

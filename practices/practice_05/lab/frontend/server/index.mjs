@@ -5,7 +5,9 @@ import { createApp } from './app.mjs';
 
 const port = Number(process.env.PORT || 3000);
 const apiOrigin = process.env.API_ORIGIN || 'http://localhost:8080';
-const app = createApp({ apiOrigin });
+const publicOrigin = process.env.PUBLIC_ORIGIN ||
+  `${process.env.TLS_CERT ? 'https' : 'http'}://localhost:${port}`;
+const app = createApp({ apiOrigin, publicOrigin });
 const cert = process.env.TLS_CERT;
 const key = process.env.TLS_KEY;
 if (Boolean(cert) !== Boolean(key)) {

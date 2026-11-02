@@ -61,17 +61,19 @@ class SessionController:
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[AsyncSession]:
         async with self._factory() as session:
+            stage = "operation"
             try:
                 logger.debug("New session started")
                 yield session
+                stage = "commit"
                 await session.commit()
                 logger.debug("Session committed successfully")
             except IntegrityError as exc:
                 await session.rollback()
                 sqlstate = extract_sqlstate(exc)
                 logger.warning(
-                    "IntegrityError (sqlstate=%s), rolled back",
-                    sqlstate,
+                    "Database integrity failure stage=%s state=%s",
+                    stage, sqlstate,
                 )
                 raise translate_database_error(exc) from exc
 
@@ -79,7 +81,8 @@ class SessionController:
                 await session.rollback()
                 sqlstate = extract_sqlstate(exc)
                 logger.error(
-                    "DBAPIError (sqlstate=%s), rolled back", sqlstate,
+                    "Database connection failure stage=%s state=%s",
+                    stage, sqlstate,
                 )
 
                 raise translate_database_error(exc) from exc
@@ -90,8 +93,8 @@ class SessionController:
 
             except Exception:
                 await session.rollback()
-                logger.exception(
-                    "Unexpected database session error, rolled back",
+                logger.error(
+                    "Database session failure stage=%s", stage,
                 )
                 raise
 

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, canModerate } from './api/client';
-import type { AccountResponse } from './api/client';
 import { Header } from './components/Header';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { AccountPage } from './pages/AccountPage';
 import { AdminPage } from './pages/AdminPage';
+import { useAuthSession } from './auth/useAuthSession';
+import { logoutMessages } from './api/logout';
 
 function currentRoute() {
   return window.location.hash.slice(1) || window.location.pathname;
@@ -13,14 +14,13 @@ function currentRoute() {
 
 export function App() {
   const [route, setRoute] = useState(currentRoute);
-  const [account, setAccount] = useState<AccountResponse | null>(null);
+  const auth = useAuthSession();
+  const { account, generation, operation, logout, reason, notice } = auth.state;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
-  const onExpired = useCallback(() => {
-    setAccount(null);
-    window.location.hash = '/login';
-  }, []);
+  const onExpired = useCallback(() => auth.onExpired(generation),
+    [auth.onExpired, generation]);
 
   useEffect(() => {
     const change = () => setRoute(currentRoute());
@@ -30,15 +30,18 @@ export function App() {
 
   useEffect(() => {
     let active = true;
+    const captured = auth.currentGeneration();
     setLoading(true);
     setError('');
-    api.me().then(data => { if (active) setAccount(data); })
+    api.me().then(data => {
+      if (active) auth.installAccount(data, captured);
+    })
       .catch(reason => {
-        if (!active) return;
+        if (!active || captured !== auth.currentGeneration()) return;
         if (!(reason instanceof ApiError && reason.status === 401)) {
           setError(reason.message);
         }
-      }).finally(() => { if (active) setLoading(false); });
+       }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [attempt]);
 
@@ -62,9 +65,18 @@ export function App() {
       onClick={() => setAttempt(value => value + 1)}>Повторить</button>
   </main>;
   if (!account) return <AuthPage register={route === '/register'}
-    onLogin={setAccount} />;
+    login={auth.login} authBusy={Boolean(operation)}
+    notice={notice} dismissNotice={auth.dismiss} />;
 
-  return <><Header account={account} />
+  return <><Header account={account} busy={Boolean(operation)}
+    onLogout={auth.startLogout} />
+    {logout === 'pending' && <div className="toast" role="status">Выходим…</div>}
+    {logout === 'failed' && reason && <div className="toast" role="alert">
+      <p>{logoutMessages[reason]}</p>
+      <button onClick={auth.startLogout}>Повторить выход</button>
+      <button onClick={auth.dismiss}>Закрыть уведомление</button>
+    </div>}
+    <div key={generation}>
     {route === '/account' ? <AccountPage onExpired={onExpired} />
       : route === '/admin' ? canModerate(account)
         ? <AdminPage onExpired={onExpired} />
@@ -72,6 +84,7 @@ export function App() {
           ← На главную</a><h1>Доступ ограничен</h1>
           <p>Admin Panel доступна модераторам и администраторам.</p>
         </main>
-        : <HomePage />}
+         : <HomePage />}
+    </div>
   </>;
 }

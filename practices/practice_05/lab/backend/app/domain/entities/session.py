@@ -32,6 +32,12 @@ class SessionEntity:
                 details={"reason": "session_expired"},
             )
 
+    def close(self, *, now: datetime | None = None) -> Self:
+        if self.closed_at is not None:
+            return self
+        now = now if now is not None else datetime.now(UTC)
+        return replace(self, closed_at=max(now, self.last_used_at))
+
     def use(
             self,
             *,

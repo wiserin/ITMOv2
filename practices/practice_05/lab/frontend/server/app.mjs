@@ -15,6 +15,8 @@ const mime = {
 
 export function createApp({
   apiOrigin = 'http://localhost:8080',
+  publicOrigin = 'http://localhost:3000',
+  logoutClock,
   root = defaultRoot,
 } = {}) {
   const target = new URL(apiOrigin);
@@ -34,7 +36,7 @@ export function createApp({
       return;
     }
     if (url.pathname.startsWith('/v1/')) {
-      await proxy(request, response, url, target.origin);
+      await proxy(request, response, url, target.origin, { publicOrigin, logoutClock });
       return;
     }
     if (url.pathname === '/health') {

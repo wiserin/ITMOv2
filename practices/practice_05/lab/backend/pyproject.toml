@@ -34,7 +34,8 @@ tests = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "tests/integration/database"]
+addopts = "--import-mode=importlib"
 
 [tool.ruff]
 line-length = 70

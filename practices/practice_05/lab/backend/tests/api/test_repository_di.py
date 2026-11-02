@@ -89,3 +89,32 @@ def test_finalization_error_is_mapped_before_response() -> None:
     assert response.status_code == 409
     assert response.json()["details"] == {"operation": "commit"}
     assert "success" not in response.json()
+
+
+def test_asgi_start_follows_function_finalization() -> None:
+    app = FastAPI()
+    events = []
+
+    async def dependency():
+        events.append("open")
+        yield NonCallableMock(spec=AsyncSession)
+        events.append("commit")
+
+    app.dependency_overrides[get_postgres_session] = dependency
+
+    @app.get("/order")
+    async def route(users: UserRepositoryDI):
+        events.append("handler")
+        return {"ok": True}
+
+    async def capture(scope, receive, send):
+        async def captured(message):
+            if message["type"] == "http.response.start":
+                events.append("start")
+            await send(message)
+
+        await app(scope, receive, captured)
+
+    with TestClient(capture) as client:
+        assert client.get("/order").status_code == 200
+    assert events == ["open", "handler", "commit", "start"]
