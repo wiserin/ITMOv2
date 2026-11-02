@@ -1,50 +1,118 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report — временный отчёт; удалить перед коммитом Constitution.
+Version change: незаполненный шаблон (без версии) → 1.0.0.
+Основание: первое принятие проектных принципов, не изменение действующей версии.
+Modified principles: шаблонные слоты заменены принципами I–V; добавлен VI.
+I. Hexagonal Architecture / DDD
+II. Explicit Contracts
+III. Dependency Injection
+IV. Transactional Consistency
+V. Verification
+VI. Documentation and Maintainability
+Added sections: Architectural Baseline; Development Workflow.
+Removed sections: нет; примеры и незаполненные слоты шаблона удалены.
+Deferred TODOs: нет.
+-->
+# AnimeMap Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Hexagonal Architecture / DDD
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+Зависимости MUST быть направлены к ядру. Domain содержит предметную модель,
+инварианты, общие доменные ошибки, порты и интерфейсы репозиториев и MUST NOT
+зависеть от инфраструктуры, HTTP или фреймворков. Application координирует сценарии
+через доменную модель и эти интерфейсы; порты в application не размещаются.
+Infrastructure реализует адаптеры с явным маппингом ORM ↔ Entity, а не бизнес-правила.
+Так предметная модель остаётся независимой от способов хранения и доставки.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Explicit Contracts
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+Каждое изменение публичного API MUST иметь согласованный до реализации контракт:
+Request/Response, включая отсутствие тела, права доступа, ошибки и их приоритет,
+состояния и переходы, наблюдаемые эффекты и критерии приёмки. HTTP-схемы MUST быть
+отделены от application DTO; перевод общих доменных ошибок в HTTP выполняется
+в Presentation. Противоречия и неутверждённые гарантии MUST выноситься на согласование,
+а не становиться неявными решениями реализации.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Dependency Injection
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+UseCase MUST получать зависимости, типизированные доменными интерфейсами, и настройки
+через конструктор; MUST NOT создавать адаптеры или читать глобальную конфигурацию.
+Конкретная инфраструктура подключается внешней сборкой и DI по `agent-rules/naming.md`.
+UseCase — конкретный наследник BaseUseCase с именованным методом, не callable.
+HTTP Presentation MUST ограничиваться транспортными проверками, маппингом,
+вызовом сценария и формированием ответа; бизнес-логика в ней запрещена.
+Утверждённая auth-DI обёртка сохраняется как документированное исключение.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Transactional Consistency
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Граница транзакции, владелец commit/rollback и момент подтверждения результата MUST
+быть явными. Репозитории получают сессию извне, выполняют flush после изменений
+и MUST NOT вызывать commit/rollback; по умолчанию ими управляет фабрика сессий.
+Утверждённое исключение Auth с отдельной транзакцией и внедрённым callback commit
+сохраняется; иное управление commit в UseCase требует явного обоснования и согласования.
+Успех, обещающий сохранение изменения, MUST отправляться после подтверждённого commit.
+Конкурентные изменения MUST учитывать инварианты, порядок необходимых блокировок
+и повторную проверку актуального состояния. Timeout или потеря ответа MUST NOT
+выдаваться за доказательство rollback либо отсутствия серверного эффекта.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. Verification
+
+Каждое функциональное требование MUST быть связано с проверяемым критерием приёмки
+и соответствующим уровнем проверки. Unit tests проверяют доменные инварианты
+и координацию UseCase изолированно; API tests — наблюдаемый HTTP-контракт;
+integration tests — реальные гарантии адаптеров, сохранения и взаимодействия систем.
+Гарантии PostgreSQL-транзакций и блокировок MUST проверяться на реальном PostgreSQL;
+моки не доказывают их. Для браузерных и proxy-гарантий MUST использоваться проверки
+соответствующей границы. Наличие спецификации MUST NOT объявляться доказательством
+реализации или прохождения проверок.
+
+### VI. Documentation and Maintainability
+
+Архитектурные решения и согласованные изменения MUST отражаться в документации.
+Имена, размещение файлов, типизация и кодстайл MUST соответствовать `agent-rules/`,
+включая разделение Entity/ORM/DTO/Request/Response и правила DI.
+Для Python обязателен лимит 70 символов с сохранением согласованных сигнатур
+и проверкой Ruff E501. Контракты ручек ведутся в `docs/endpoints/` по группам,
+смысл и инварианты сущностей — в `docs/entities/`, схема хранения — в DBML.
+Эти правила обеспечивают единообразие и проверяемость изменений.
+
+## Architectural Baseline
+
+AnimeMap сохраняет существующие слои domain, application, infrastructure,
+presentation и config/bootstrap, гексагональную архитектуру, DDD, ООП и SOLID.
+Обязательные источники конкретных правил: `agent-rules/AGENTS.md`,
+`agent-rules/naming.md`, `agent-rules/codestyle.md`.
+Утверждённые ADR-01–ADR-11 в `docs/sdd/logout/REVIEW.md` §6 и их окончательная
+формализация в `docs/sdd/logout/CONTRACT.md` сохраняют силу в своей области,
+включая явно согласованные исключения из baseline и границы гарантий.
+Constitution MUST NOT трактоваться как их отмена, расширение scope или усиление
+обещаний конкуренции. Детали Logout определяются контрактом, а не дублируются здесь.
+
+## Development Workflow
+
+До реализации изменения MUST быть сверены с актуальными `agent-rules/`,
+применимыми ADR и контрактом; Request/Response, состояния, ошибки и критерии
+приёмки MUST быть согласованы. План MUST обозначать затронутые слои, DI,
+транзакционные границы и проверки соответствующих гарантий.
+Review MUST проверять направление зависимостей, соблюдение контрактов,
+согласованность документации и результаты применимых тестов и проверок кодстайла.
+Неурегулированное противоречие MUST быть предъявлено на согласование до реализации.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+Constitution закрепляет общие правила проекта; конкретные утверждённые решения
+и исключения применяются в своей области согласно Architectural Baseline.
+Изменение Constitution MUST содержать обоснование, оценку влияния на правила,
+ADR, контракты и проверки и получить согласование человека, управляющего архитектурой.
+Противоречие с утверждённым ADR MUST разрешаться отдельным согласованием изменения
+решения, а не молчаливой заменой через Constitution.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+Версия MUST следовать SemVer: MAJOR — несовместимое удаление или переопределение
+принципов; MINOR — новый принцип/раздел или существенное расширение требований;
+PATCH — уточнения без изменения обязательств. Каждая поправка MUST обновлять версию
+и Last Amended, сохраняя исходную дату Ratified. При каждом review MUST проверяться
+соблюдение применимых принципов; отступления требуют явного согласованного решения.
+
+**Version**: 1.0.0 | **Ratified**: 2026-11-02 | **Last Amended**: 2026-11-02
