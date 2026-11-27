@@ -1,0 +1,674 @@
+{
+  "name": "Issue triage",
+  "nodes": [
+    {
+      "parameters": {
+        "owner": {
+          "__rl": true,
+          "mode": "list",
+          "value": "wiserin"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "list",
+          "value": "ITMOv2"
+        },
+        "events": [
+          "issues"
+        ],
+        "options": {}
+      },
+      "id": "6c94695d-a8fa-44ec-a5c1-60869eabc0a7",
+      "name": "GitHub Issues Trigger",
+      "type": "n8n-nodes-base.githubTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        272
+      ],
+      "webhookId": "728efaaa-cccc-490f-9ed9-f483845a2ac3",
+      "credentials": {
+        "githubApi": {
+          "id": "VHEVDLxCmrDSy1Dv",
+          "name": "GitHub account 79"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $input.first().json.body ?? $input.first().json;\nif (p.action !== 'opened' || !p.issue || p.issue.pull_request) return [];\nconst i=p.issue, repository=p.repository?.full_name;\nif (repository !== 'wiserin/ITMOv2' || !i.id || !Number.isInteger(i.number)) return [];\nreturn [{json:{repository,issue_id:String(i.id),issue_number:i.number,title:i.title,body:i.body ?? '',author:i.user?.login ?? '',first_time:i.author_association === 'NONE',created_at:i.created_at}}];"
+      },
+      "id": "f840d4d7-c84f-42fd-9b35-2a2c51ff665d",
+      "name": "Normalize issue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "rowNotExists",
+        "dataTableId": {
+          "__rl": true,
+          "value": "jQ2hgvmoO2l3ResV",
+          "mode": "list",
+          "cachedResultName": "processed_issues",
+          "cachedResultUrl": "/projects/YN4smM6Ry7hAefLX/datatables/jQ2hgvmoO2l3ResV"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "issue_id",
+              "keyValue": "={{ $json.issue_id }}"
+            }
+          ]
+        }
+      },
+      "id": "ccd29653-fcd0-4fe4-b0aa-d74608a02619",
+      "name": "Skip processed issue",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        448,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "YtbfEaRuA3YOuygj",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/YtbfEaRuA3YOuygj",
+          "cachedResultName": "Issue classifier"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "69f3b73c-ae22-4e83-b1a3-08daaf2e157f",
+      "name": "Execute classifier",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        672,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx=$('Normalize issue').first().json;\nconst c=$input.first().json;\nconst valid=['bug','task','feature'].includes(c.type) && typeof c.confidence==='number' && c.confidence>=0.8 && c.confidence<=1;\nreturn [{json:{...ctx,type:valid?c.type:'unknown',confidence:c.confidence ?? 0}}];"
+      },
+      "id": "7745c73a-4107-4e10-8778-340b4c5f2495",
+      "name": "Escalation check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "03719eb1-88b5-4588-8a98-0ba6bfa239e9",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "bug",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "bug"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "1a1fec7b-c7a9-4c33-ab38-15178939029a",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "task",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "task"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "b7ef365e-bbc6-4535-9d1b-85713f5aacae",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "feature",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "feature"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "ef63fe01-0ede-41b7-a3ca-3977d7e6192f",
+                    "leftValue": "={{ $json.type }}",
+                    "rightValue": "unknown",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unknown"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8c8edcad-1f05-4b76-854e-376e133591ab",
+      "name": "Switch issue type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1104,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;\nconst labels=[\"bug\"];\nif (x.first_time) labels.push('first-time-contributor');\nlet comment=\"Спасибо за баг-репорт! Если возможно, приложите шаги воспроизведения, ожидаемый и фактический результат.\";\nif (comment && x.first_time) comment=`Привет @${x.author}! Рады вашему первому вкладу. [CONTRIBUTING.md](https://github.com/${x.repository}/blob/main/CONTRIBUTING.md)\\n\\n${comment}`;\nreturn [{json:{...x,labels,comment}}];"
+      },
+      "id": "9eec91b7-25cc-47d2-bfbe-3efed4ef79f8",
+      "name": "Route bug",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;\nconst labels=[\"task\"];\nif (x.first_time) labels.push('first-time-contributor');\nlet comment=\"Спасибо за обращение! Мы рассмотрим задачу или вопрос.\";\nif (comment && x.first_time) comment=`Привет @${x.author}! Рады вашему первому вкладу. [CONTRIBUTING.md](https://github.com/${x.repository}/blob/main/CONTRIBUTING.md)\\n\\n${comment}`;\nreturn [{json:{...x,labels,comment}}];"
+      },
+      "id": "65f5d2e2-9c48-4cf3-92c7-c0b824286902",
+      "name": "Route task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;\nconst labels=[\"feature-request\"];\nif (x.first_time) labels.push('first-time-contributor');\nlet comment=\"Спасибо за предложение! Мы рассмотрим возможность его реализации.\";\nif (comment && x.first_time) comment=`Привет @${x.author}! Рады вашему первому вкладу. [CONTRIBUTING.md](https://github.com/${x.repository}/blob/main/CONTRIBUTING.md)\\n\\n${comment}`;\nreturn [{json:{...x,labels,comment}}];"
+      },
+      "id": "ac00ac79-b78a-4803-bfab-71230859e11f",
+      "name": "Route feature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$input.first().json;\nconst labels=[\"needs-triage\"];\nif (x.first_time) labels.push('first-time-contributor');\nlet comment=\"\";\nif (comment && x.first_time) comment=`Привет @${x.author}! Рады вашему первому вкладу. [CONTRIBUTING.md](https://github.com/${x.repository}/blob/main/CONTRIBUTING.md)\\n\\n${comment}`;\nreturn [{json:{...x,labels,comment}}];"
+      },
+      "id": "06ff1227-9ce4-484e-8b11-6f937cfdbb3a",
+      "name": "Route unknown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $json.repository }}/issues/{{ $json.issue_number }}/labels",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({labels:$json.labels}) }}",
+        "options": {}
+      },
+      "id": "084fb63c-444d-4767-a714-889faf5a669d",
+      "name": "Add issue labels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1568,
+        272
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "TG6S6mUxsurfKT1J",
+          "name": "Bearer Auth account 44"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$('Escalation check').first().json;\nconst names={bug:'Route bug',task:'Route task',feature:'Route feature',unknown:'Route unknown'};\nreturn [{json:$(names[x.type]).first().json}];"
+      },
+      "id": "6ff09f1c-7206-47a5-b726-60f2a395635c",
+      "name": "Prepare response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "889aa441-d209-4d8f-9e30-07ff80ebdcf7",
+              "leftValue": "={{ Boolean($json.comment) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cca399bd-d5c3-4fc9-87f2-ac8a206ebf31",
+      "name": "Should comment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2000,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $json.repository }}/issues/{{ $json.issue_number }}/comments",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({body:$json.comment}) }}",
+        "options": {}
+      },
+      "id": "e6abaaf0-dbce-4b50-928a-8edf49b1dffe",
+      "name": "Post issue comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2224,
+        176
+      ],
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "TG6S6mUxsurfKT1J",
+          "name": "Bearer Auth account 44"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "jQ2hgvmoO2l3ResV",
+          "mode": "list",
+          "cachedResultName": "processed_issues",
+          "cachedResultUrl": "/projects/YN4smM6Ry7hAefLX/datatables/jQ2hgvmoO2l3ResV"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "issue_id": "={{ $('Normalize issue').first().json.issue_id }}",
+            "author": "={{ $('Normalize issue').first().json.author }}",
+            "created_at": "={{ $('Normalize issue').first().json.created_at }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "issue_id",
+              "displayName": "issue_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "author",
+              "displayName": "author",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "f2a7ea78-4524-4a3a-bc94-1bd117d75a5c",
+      "name": "Save processed issue",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        272
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Switch issue type": {
+      "main": [
+        [
+          {
+            "node": "Route bug",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route task",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route feature",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route unknown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route bug": {
+      "main": [
+        [
+          {
+            "node": "Add issue labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route task": {
+      "main": [
+        [
+          {
+            "node": "Add issue labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route feature": {
+      "main": [
+        [
+          {
+            "node": "Add issue labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route unknown": {
+      "main": [
+        [
+          {
+            "node": "Add issue labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GitHub Issues Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize issue": {
+      "main": [
+        [
+          {
+            "node": "Skip processed issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip processed issue": {
+      "main": [
+        [
+          {
+            "node": "Execute classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute classifier": {
+      "main": [
+        [
+          {
+            "node": "Escalation check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalation check": {
+      "main": [
+        [
+          {
+            "node": "Switch issue type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add issue labels": {
+      "main": [
+        [
+          {
+            "node": "Prepare response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare response": {
+      "main": [
+        [
+          {
+            "node": "Should comment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should comment?": {
+      "main": [
+        [
+          {
+            "node": "Post issue comment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save processed issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post issue comment": {
+      "main": [
+        [
+          {
+            "node": "Save processed issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ac369d86-82e6-4a77-bfa9-964a213959a2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "68dbbb4e8fa686c3fd4e9982ade6836edb66976f207553e7ac22df961581c78c"
+  },
+  "nodeGroups": [],
+  "id": "qsSuuPl0h8mwBejg",
+  "tags": []
+}
