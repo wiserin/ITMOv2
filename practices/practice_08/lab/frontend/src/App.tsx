@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, canModerate } from './api/client';
 import type { AccountResponse } from './api/client';
-import { Header } from './components/Header';
+import { BackLink, Button, Feedback, Header, Spinner } from './UI';
 import { AuthPage } from './pages/AuthPage';
 import { HomePage } from './pages/HomePage';
 import { AccountPage } from './pages/AccountPage';
@@ -53,13 +53,13 @@ export function App() {
   }, [loading, error, account, route]);
 
   if (loading) return <div className="app-status" role="status">
-    <span className="spinner" /> Загружаем AnimeMap…
+    <Spinner /> Загружаем AnimeMap…
   </div>;
   if (error) return <main className="app-status">
     <h1>Не удалось загрузить AnimeMap</h1>
-    <p className="error" role="alert">{error}</p>
-    <button className="secondary"
-      onClick={() => setAttempt(value => value + 1)}>Повторить</button>
+    <Feedback>{error}</Feedback>
+    <Button
+      onClick={() => setAttempt(value => value + 1)}>Повторить</Button>
   </main>;
   if (!account) return <AuthPage register={route === '/register'}
     onLogin={setAccount} />;
@@ -68,8 +68,7 @@ export function App() {
     {route === '/account' ? <AccountPage onExpired={onExpired} />
       : route === '/admin' ? canModerate(account)
         ? <AdminPage onExpired={onExpired} />
-        : <main className="page"><a className="back-link" href="#/">
-          ← На главную</a><h1>Доступ ограничен</h1>
+        : <main className="page"><BackLink /><h1>Доступ ограничен</h1>
           <p>Admin Panel доступна модераторам и администраторам.</p>
         </main>
         : <HomePage />}

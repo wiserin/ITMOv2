@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { canModerate, type AccountResponse } from '../api/client';
-import { Avatar, roleNames } from './AccountDetails';
+import { canModerate, type AccountResponse } from '../../api/client';
+import { Avatar } from './Avatar';
+import { roleNames } from './roleNames';
+import { Button } from './Button';
 import { Brand } from './Brand';
 
 export function Header({ account }: { account: AccountResponse }) {
@@ -40,17 +42,19 @@ export function Header({ account }: { account: AccountResponse }) {
           trigger.current?.focus();
         }
       }}>
-      <button className="avatar-button" ref={trigger}
+      <Button variant="plain" className="avatar-button" ref={trigger}
         aria-label="Меню аккаунта" aria-expanded={open}
         aria-controls="account-menu"
         onClick={() => setOpen(value => !value)}>
         <Avatar account={account} />
-      </button>
+      </Button>
       {open && <div className="dropdown-wrap">
         <nav className="dropdown" id="account-menu"
           aria-label="Аккаунт">
           <div className="menu-identity">
-            <strong>{account.display_name || account.username}</strong>
+            <strong>
+              {account.display_name || account.username}
+            </strong>
             <small>{roleNames[account.role]}</small>
           </div>
           <a href="#/account" onClick={() => setOpen(false)}>
@@ -60,19 +64,19 @@ export function Header({ account }: { account: AccountResponse }) {
             <a href="#/admin" onClick={() => setOpen(false)}>
               <span aria-hidden="true">⊞</span> Admin Panel
             </a>}
-          <button onClick={() => {
+          <Button variant="plain" onClick={() => {
             setNotice(true);
             setOpen(false);
           }}><span aria-hidden="true">↗</span> Выйти
             <small>Скоро</small>
-          </button>
+          </Button>
         </nav>
       </div>}
     </div>
     {notice && <div className="toast" role="status">
       Выход появится позже. Ваша сессия остаётся активной.
-      <button aria-label="Закрыть уведомление"
-        onClick={() => setNotice(false)}>×</button>
+      <Button variant="plain" aria-label="Закрыть уведомление"
+        onClick={() => setNotice(false)}>×</Button>
     </div>}
   </header>;
 }

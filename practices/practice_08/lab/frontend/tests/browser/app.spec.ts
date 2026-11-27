@@ -131,3 +131,59 @@ test('service failure is displayed instead of empty search', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Пользователи не найдены' }))
     .toHaveCount(0);
 });
+
+test('pagination and clearing search reset the offset', async ({ page }) => {
+  await mockApi(page, 'admin');
+  const offsets: number[] = [];
+  await page.route('**/v1/account/find/**', async route => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get('offset'));
+    offsets.push(offset);
+    const accounts = Array.from({ length: offset ? 1 : 20 },
+      (_, index) => ({ ...account, id: `account-${offset + index}` }));
+    await route.fulfill({ json: { accounts } });
+  });
+  await page.goto('/#/admin');
+  const search = page.getByLabel('Имя пользователя', { exact: true });
+  await search.fill('ani');
+  await expect(page.locator('.user-row')).toHaveCount(20);
+  await expect(page.getByRole('button', { name: 'Назад' }))
+    .toBeDisabled();
+  await page.getByRole('button', { name: 'Далее' }).click();
+  await expect(page.locator('.user-row')).toHaveCount(1);
+  await expect(page.getByText('Страница 2', { exact: true }))
+    .toBeVisible();
+  await expect(page.getByRole('button', { name: 'Далее' }))
+    .toBeDisabled();
+  await page.getByRole('button', { name: 'Очистить поиск' }).click();
+  await expect(page.locator('.pagination')).toHaveCount(0);
+  await search.fill('ani');
+  await expect(page.locator('.user-row')).toHaveCount(20);
+  expect(offsets).toEqual([0, 20, 0]);
+});
+
+test('library fields and submit button disable during login', async ({ page }) => {
+  await mockApi(page, 'user', false);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  await page.route('**/v1/auth/login', async route => {
+    await pending;
+    await route.fulfill({ status: 401, json: {} });
+  });
+  await page.goto('/#/login');
+  const email = page.getByLabel('Email', { exact: true });
+  const password = page.getByLabel('Пароль', { exact: true });
+  await email.fill('fan@example.com');
+  await password.fill('password');
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await expect(email).toBeDisabled();
+  await expect(password).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Подождите…' }))
+    .toBeDisabled();
+  release();
+  await expect(page.getByRole('alert')).toContainText('Неверный email');
+  await expect(email).toBeEnabled();
+  await expect(password).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }))
+    .toBeEnabled();
+});

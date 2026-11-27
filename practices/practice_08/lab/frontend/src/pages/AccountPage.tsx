@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError, type AccountResponse } from '../api/client';
-import { AccountDetails } from '../components/AccountDetails';
+import { AccountDetails, BackLink, Button, Card, Feedback } from '../UI';
 
 export function AccountPage({ onExpired }: { onExpired: () => void }) {
   const [account, setAccount] = useState<AccountResponse | null>(null);
@@ -20,19 +20,19 @@ export function AccountPage({ onExpired }: { onExpired: () => void }) {
   }, [attempt, onExpired]);
 
   return <main className="page account-page">
-    <a className="back-link" href="#/">← На главную</a>
+    <BackLink />
     <p className="eyebrow">Личное пространство</p>
     <h1>Мой аккаунт</h1>
     <p className="muted">Ваш профиль в AnimeMap.</p>
-    <section className="card profile-card">
-      {error ? <div role="alert">
-        <p className="error">{error}</p>
-        <button className="secondary"
+    <Card className="profile-card">
+      {error ? <div>
+        <Feedback>{error}</Feedback>
+        <Button
           onClick={() => setAttempt(value => value + 1)}>
           Повторить
-        </button>
+        </Button>
       </div> : account ? <AccountDetails account={account} />
         : <p role="status">Загружаем профиль…</p>}
-    </section>
+    </Card>
   </main>;
 }

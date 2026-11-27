@@ -174,3 +174,4 @@ student_solutions/
 !.specify/
 !.vscode/
 .ruff_cache/
+.env

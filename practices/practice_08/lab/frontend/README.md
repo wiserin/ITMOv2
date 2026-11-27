@@ -120,12 +120,25 @@ TLS_CERT=/absolute/path/localhost.pem TLS_KEY=/absolute/path/localhost-key.pem n
 ```text
 src/
   api/          # HTTP-клиент и типы контрактов
-  components/   # меню, профиль, модальное окно, бренд
+  UI/
+    components/ # библиотека визуальных компонентов
+    styles/     # токены, база, компоненты, композиция, адаптивность
+    index.ts    # публичный экспорт библиотеки
   pages/        # авторизация, главная, аккаунт, админка
-  styles/       # адаптивное оформление
 server/         # Node.js static server, TLS и API proxy
 tests/          # проверки прокси и браузерных сценариев
 ```
+
+## Библиотека UI
+
+Все компоненты интерфейса используются из `src/UI`. Если нужного
+компонента нет, сначала реализуйте его в `UI/components`, добавьте
+экспорт в `UI/index.ts`, затем используйте в странице. Стили и токены
+находятся в `UI/styles`, точка подключения — `UI/styles/index.css`.
+
+Каталог компонентов, архитектура и примеры:
+[docs/frontend](../docs/frontend/README.md).
+Обязательные правила: [AGENTS.md](AGENTS.md).
 
 ## Проверки
 

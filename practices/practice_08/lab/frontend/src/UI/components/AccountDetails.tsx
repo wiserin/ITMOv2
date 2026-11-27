@@ -1,17 +1,7 @@
-import type { AccountResponse } from '../api/client';
+import type { AccountResponse } from '../../api/client';
 
-export const roleNames = {
-  user: 'Пользователь',
-  moderator: 'Модератор',
-  admin: 'Администратор',
-};
-
-export function Avatar({ account }: { account: AccountResponse }) {
-  return <span className="avatar" aria-hidden="true">
-    {(account.display_name || account.username).slice(0, 1)
-      .toUpperCase()}
-  </span>;
-}
+import { Avatar } from './Avatar';
+import { roleNames } from './roleNames';
 
 export function AccountDetails(
   { account }: { account: AccountResponse },

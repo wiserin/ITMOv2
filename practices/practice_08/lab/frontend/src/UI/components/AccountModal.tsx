@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { AccountResponse } from '../api/client';
+import type { AccountResponse } from '../../api/client';
+import { Button } from './Button';
 import { AccountDetails } from './AccountDetails';
 
 export function AccountModal({ account, onClose }: {
@@ -21,9 +22,11 @@ export function AccountModal({ account, onClose }: {
     }}>
     <div className="modal-body">
       <div className="section-top">
-        <p className="eyebrow" id="modal-title">Профиль пользователя</p>
-        <button className="icon-button" onClick={onClose}
-          aria-label="Закрыть карточку">×</button>
+        <p className="eyebrow" id="modal-title">
+          Профиль пользователя
+        </p>
+        <Button variant="icon" onClick={onClose}
+          aria-label="Закрыть карточку">×</Button>
       </div>
       <AccountDetails account={account} />
     </div>
