@@ -1,8 +1,7 @@
 import type { ComponentProps } from 'react';
 
 export function Card({
-  className = '', ...props
+    className = '', ...props
 }: ComponentProps<'section'>) {
-  const classes = `card ${className}`.trim();
-  return <section className={classes} {...props} />;
+    return <section className={`ui-card ${className}`} {...props} />;
 }

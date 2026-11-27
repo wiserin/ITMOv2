@@ -1,22 +1,29 @@
-import { useId } from 'react';
+import { useRef } from 'react';
 import { Button } from './Button';
+import { TextField, type TextFieldProps } from './TextField';
 
-export function SearchField({ value, onChange }: {
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const id = useId();
-  return <>
-    <label className="search-label" htmlFor={id}>
-      Имя пользователя
-    </label>
-    <div className="search-input">
-      <span aria-hidden="true">⌕</span>
-      <input id={id} value={value} maxLength={100}
-        autoComplete="off" placeholder="Начните вводить username…"
-        onChange={event => onChange(event.target.value)} />
-      {value && <Button variant="icon" aria-label="Очистить поиск"
-        onClick={() => onChange('')}>×</Button>}
-    </div>
-  </>;
+export type SearchFieldProps = Omit<TextFieldProps,
+    'value' | 'defaultValue' | 'onChange' | 'type' | 'ref'
+    | 'startAdornment' | 'endAdornment'> & {
+    value: string;
+    onChange: (value: string) => void;
+    clearLabel: string;
+};
+
+export function SearchField({
+    value, onChange, clearLabel, className = '', ...props
+}: SearchFieldProps) {
+    const input = useRef<HTMLInputElement>(null);
+    return <TextField {...props} ref={input} type="search"
+        className={`ui-search ${className}`} value={value}
+        onChange={event => onChange(event.target.value)}
+        startAdornment={<span className="ui-search__icon"
+            aria-hidden="true">⌕</span>}
+        endAdornment={value && <Button variant="icon"
+            disabled={props.disabled || props.readOnly}
+            aria-label={clearLabel}
+            onClick={() => {
+                onChange('');
+                input.current?.focus();
+            }}>×</Button>} />;
 }

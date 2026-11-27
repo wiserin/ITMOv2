@@ -115,32 +115,45 @@ TLS_CERT=/absolute/path/localhost.pem TLS_KEY=/absolute/path/localhost-key.pem n
 Шрифт Manrope загружается из Google Fonts; при отсутствии сети
 используется системный шрифт. Остальная графика создаётся CSS.
 
-## Структура
+## Структура и библиотека
 
 ```text
 src/
-  api/          # HTTP-клиент и типы контрактов
-  UI/
-    components/ # библиотека визуальных компонентов
-    styles/     # токены, база, компоненты, композиция, адаптивность
-    index.ts    # публичный экспорт библиотеки
-  pages/        # авторизация, главная, аккаунт, админка
-server/         # Node.js static server, TLS и API proxy
-tests/          # проверки прокси и браузерных сценариев
+    UI/components/  # универсальные визуальные компоненты
+    UI/styles/      # палитра, токены и scoped-стили UI
+    UI/index.ts     # публичные компоненты и типы props
+    components/     # аккаунты, меню, бренд и иллюстрации AnimeMap
+    styles/         # предметные стили и композиция экранов
+    pages/          # сценарии, состояние и API-запросы
+    api/            # HTTP-клиент и транспортные модели
+server/             # Node.js static server, TLS и API proxy
+tests/              # проверки сервера, UI и браузерных сценариев
 ```
 
-## Библиотека UI
+Перед новым визуальным элементом проверьте `UI/index.ts` и
+переиспользуйте готовый компонент. Новый универсальный элемент
+сначала реализуется в UI; предметный компонент — в `components/`
+на основе UI. Универсальный слой не зависит от API и аккаунтов.
+Единственная точка подключения CSS — `src/styles/index.css`.
 
-Все компоненты интерфейса используются из `src/UI`. Если нужного
-компонента нет, сначала реализуйте его в `UI/components`, добавьте
-экспорт в `UI/index.ts`, затем используйте в странице. Стили и токены
-находятся в `UI/styles`, точка подключения — `UI/styles/index.css`.
-
-Каталог компонентов, архитектура и примеры:
+Каталог props, примеры, дизайн-система и команды:
 [docs/frontend](../docs/frontend/README.md).
-Обязательные правила: [AGENTS.md](AGENTS.md).
+Правила AI-агентов: [AGENTS.md](AGENTS.md).
+Отчёт о потерянном logout в practice_5 и ограничениях текущего API:
+[regressions.md](../docs/frontend/regressions.md).
 
 ## Проверки
+
+Все проверки в Docker из `frontend/`:
+
+```bash
+docker build -f Dockerfile.tests -t animemap-frontend-tests .
+docker run --rm --init --ipc=host animemap-frontend-tests
+```
+
+Контейнер собирает клиент, проверяет TypeScript, запускает серверные
+тесты и Playwright в Chromium. Ошибка любого этапа возвращает ненулевой
+код завершения. Backend для этих проверок не требуется.
 
 ```bash
 npm run build

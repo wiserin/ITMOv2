@@ -1,5 +1,5 @@
-import { HomePlaceholder } from '../UI';
+import { HomePlaceholder } from '../components/HomePlaceholder';
 
 export function HomePage() {
-  return <HomePlaceholder />;
+    return <HomePlaceholder />;
 }

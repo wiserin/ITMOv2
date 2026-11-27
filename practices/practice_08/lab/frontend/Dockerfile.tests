@@ -1,0 +1,19 @@
+FROM node:22-bookworm
+
+WORKDIR /app
+
+ENV CI=true
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev \
+    && npx playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY tsconfig.json tsconfig.tests.json index.html ./
+COPY playwright.config.ts ./
+COPY src ./src
+COPY server ./server
+COPY tests ./tests
+
+CMD ["sh", "-c", "npm run build && npm run typecheck && npm test && npm run test:e2e"]

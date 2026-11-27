@@ -1,3 +1,3 @@
 export function Spinner() {
-  return <span className="spinner" aria-hidden="true" />;
+    return <span className="ui-spinner" aria-hidden="true" />;
 }
